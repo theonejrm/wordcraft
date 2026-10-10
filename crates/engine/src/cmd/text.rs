@@ -27,7 +27,8 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// Smart quotes and AutoFormat-as-you-type (lists from "* " / "1. ", dashes).
+/// Smart quotes in the language of the text being typed („…“ and ‚…‘ in German, “…” in English)
+/// and AutoFormat-as-you-type (lists from "* " / "1. ", dashes).
 fn autoformat(s: &mut Session, text: &str) -> Option<String> {
     if text.chars().count() != 1 {
         return None;
@@ -38,9 +39,19 @@ fn autoformat(s: &mut Session, text: &str) -> Option<String> {
     let before = para.text.get(..f.off)?;
     let prev = before.chars().next_back();
     let opening = prev.is_none_or(|p| p.is_whitespace() || "([{<\u{2014}\u{2013}".contains(p));
+    let lang = s.typing_lang().unwrap_or_else(|| s.locale.clone());
+    let (open2, close2, open1, close1) = crate::region::quotes(&lang);
     match c {
-        '"' => Some(if opening { "\u{201C}" } else { "\u{201D}" }.into()),
-        '\'' => Some(if opening { "\u{2018}" } else { "\u{2019}" }.into()),
+        '"' => Some(if opening { open2 } else { close2 }.to_string()),
+        '\'' if opening => Some(open1.to_string()),
+        // A closing single quote only ends an open one; otherwise it is an apostrophe
+        // (geht’s, don’t), which differs from the closing quote in German (‚so‘).
+        '\'' => {
+            let open_count = before.matches(open1).count();
+            let close_count = if open1 == close1 { open_count / 2 } else { before.matches(close1).count() };
+            let quoting = if open1 == close1 { open_count % 2 == 1 } else { open_count > close_count };
+            Some(if quoting { close1 } else { '\u{2019}' }.to_string())
+        }
         _ => None,
     }
 }

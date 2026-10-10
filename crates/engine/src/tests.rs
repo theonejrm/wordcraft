@@ -372,3 +372,58 @@ fn dates_follow_the_session_region() {
     });
     assert_eq!(field.as_deref(), Some("DATE \\@ \"MMMM d, yyyy\""));
 }
+
+#[test]
+fn german_text_is_not_judged_as_english() {
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    s.locale = "de-DE".into();
+    run(&mut s, "file.new", json!({}));
+    run(&mut s, "text.insert", json!({"text": "Grüße aus Köln, schreibt die Nachbarschaft."}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["done"], true, "German text has no English spelling issues: {r}");
+    // English text in the same document is still checked.
+    run(&mut s, "text.insert", json!({"text": " Thsi is wrnog."}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "review.language", json!({"lang": "en-US"}));
+    run(&mut s, "caret.docStart", json!({}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["kind"], "spelling", "{r}");
+    // Without a language the command marks text in the session's language.
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "review.language", json!({}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["done"], true, "{r}");
+}
+
+#[test]
+fn quotes_follow_the_language_of_the_text() {
+    let typed = |locale: &str, keys: &str| {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        s.locale = locale.into();
+        run(&mut s, "file.new", json!({}));
+        for c in keys.chars() {
+            run(&mut s, "text.insert", json!({"text": c.to_string()}));
+        }
+        text(&s)
+    };
+    assert_eq!(typed("de-DE", "Sie sagte \"ja\" und 'so' geht's"), "Sie sagte „ja“ und ‚so‘ geht’s");
+    assert_eq!(typed("en-US", "She said \"yes\" and 'so' it's"), "She said “yes” and ‘so’ it’s");
+    assert_eq!(typed("de-CH", "\"Grüezi\""), "«Grüezi»");
+    // English typo fixes stay out of German text ("wich" is a German word).
+    assert_eq!(typed("de-DE", "er wich aus "), "er wich aus ");
+    assert_eq!(typed("en-US", "teh "), "the ");
+}
+
+#[test]
+fn normal_margins_are_the_regions() {
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    s.locale = "de-DE".into();
+    run(&mut s, "file.new", json!({"template": "letter"}));
+    run(&mut s, "layout.margins", json!({"preset": "narrow"}));
+    let r = run(&mut s, "layout.margins", json!({"preset": "normal"}));
+    let cm = r["marginLeft"].as_f64().unwrap() / f64::from(wordcraft_geom::PT_PER_CM);
+    assert!((cm - 2.5).abs() < 0.001, "{r}");
+    s.locale = "en-US".into();
+    let r = run(&mut s, "layout.margins", json!({"preset": "normal"}));
+    assert_eq!(r["marginLeft"], 72.0);
+}

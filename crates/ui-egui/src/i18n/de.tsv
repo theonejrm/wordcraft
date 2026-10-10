@@ -880,3 +880,46 @@
 	TOC 7 style	Verzeichnis 7
 	TOC 8 style	Verzeichnis 8
 	TOC 9 style	Verzeichnis 9
+
+# Measurement units, number formats, paper, status bar language.
+	Centimeters	Zentimeter
+	Millimeters	Millimeter
+	Inches	Zoll
+	Points	Punkt
+	Automatic ({unit})	Automatisch ({unit})
+	Show measurements in units of:	Maßeinheit:
+	Centered	Zentriert
+	Justified	Blocksatz
+	{size} all	{size} rundum
+	Top {top}, Bottom {bottom}, Left {left}, Right {right}	Oben {top}, unten {bottom}, links {left}, rechts {right}
+	Normal	Normal
+	Narrow	Schmal
+	{name} — set your name in File › Options	{name} – lege deinen Namen unter Datei › Optionen fest
+	{cols}×{rows} Table	Tabelle {cols}×{rows}
+	{count} results	{count} Ergebnisse
+	{contributors} contributors · {commits} commits	{contributors} Mitwirkende · {commits} Commits
+	English (United Kingdom)	Englisch (Vereinigtes Königreich)
+	English	Englisch
+	German (Germany)	Deutsch (Deutschland)
+	German (Austria)	Deutsch (Österreich)
+	German (Switzerland)	Deutsch (Schweiz)
+	German	Deutsch
+	French (France)	Französisch (Frankreich)
+	French	Französisch
+	Spanish (Spain)	Spanisch (Spanien)
+	Spanish	Spanisch
+	Italian (Italy)	Italienisch (Italien)
+	Italian	Italienisch
+	Dutch (Netherlands)	Niederländisch (Niederlande)
+	Dutch	Niederländisch
+	Polish (Poland)	Polnisch (Polen)
+	Portuguese (Brazil)	Portugiesisch (Brasilien)
+	Portuguese	Portugiesisch
+	Japanese	Japanisch
+	Chinese (Simplified)	Chinesisch (vereinfacht)
+	Chinese (Traditional)	Chinesisch (traditionell)
+	Chinese	Chinesisch
+	Swedish	Schwedisch
+	Envelope #10 paper	Umschlag #10
+	Envelope DL paper	Umschlag DL
+	Document1	Dokument1

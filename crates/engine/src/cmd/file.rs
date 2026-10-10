@@ -77,12 +77,14 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
+    // New documents use the region's paper, margins and language (A4 and German for de-DE);
+    // the sample stays the English showcase.
     let doc = match p::str(v, "template").unwrap_or("blank") {
         "sample" => crate::sample::sample_document(),
-        "letter" => crate::sample::letter(),
-        "resume" => crate::sample::resume(),
-        "report" => crate::sample::report(),
-        _ => Document::new(),
+        "letter" => crate::sample::letter_in(&s.locale),
+        "resume" => crate::sample::resume_in(&s.locale),
+        "report" => crate::sample::report_in(&s.locale),
+        _ => crate::sample::blank_in(&s.locale),
     };
     s.set_document(doc);
     s.path = None;

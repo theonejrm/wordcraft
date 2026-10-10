@@ -357,7 +357,10 @@ pub fn specs() -> Vec<CommandSpec> {
             })
         }),
         CommandSpec::new("review.language", "Language", "Review › Language", |s, v| {
-            let lang = p::str(v, "lang").unwrap_or("en-US").to_string();
+            let lang = match p::str(v, "lang") {
+                Some(l) => l.to_string(),
+                None => crate::region::lang_tag(&s.locale).unwrap_or_else(|| "en-US".into()),
+            };
             let no_proof = p::bool(v, "noProof");
             super::format::apply(s, &|c| {
                 c.lang = Some(lang.clone());
@@ -466,8 +469,11 @@ pub fn autocorrect(s: &mut Session) -> Result<(), CmdError> {
         return Ok(());
     }
     let user = s.autocorrect_user.iter().find(|(a, _)| a == word).map(|(_, b)| b.clone());
+    // The built-in list fixes English typos; in other languages its "typos" can be words.
+    let english = wordcraft_layout::para::proofed_language(s.typing_lang().as_deref());
     let builtin = AUTOCORRECT
         .iter()
+        .filter(|_| english)
         .find(|(a, _)| {
             *a == word || (a.chars().all(|c| c.is_lowercase()) && word.to_lowercase() == *a && word.chars().next().is_some_and(char::is_uppercase))
         })

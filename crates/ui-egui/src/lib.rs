@@ -22,6 +22,7 @@ pub mod dialogs;
 pub mod i18n;
 pub mod icons;
 pub mod keys;
+pub mod measure;
 pub mod panes;
 pub mod previews;
 pub mod ribbon;
@@ -71,6 +72,9 @@ pub struct UiState {
     pub window: Option<window_geometry::WindowGeometry>,
     /// Interface language: `auto` (follow the system) or a code from [`i18n::LANGUAGES`].
     pub language: String,
+    /// Measurement units: `auto` (the region's: centimetres in Germany, inches in the US) or
+    /// `cm`, `mm`, `in`, `pt` ([`measure::UNITS`]).
+    pub units: String,
 }
 
 impl Default for UiState {
@@ -87,6 +91,7 @@ impl Default for UiState {
             author: String::new(),
             window: None,
             language: i18n::AUTO.into(),
+            units: measure::AUTO.into(),
         }
     }
 }
@@ -279,6 +284,17 @@ impl WordApp {
                 self.ui.dark = p.get("value").and_then(Value::as_bool).unwrap_or(!self.ui.dark);
                 json!({"dark": self.ui.dark})
             }
+            "ui.units" => {
+                // `auto` (the region's unit) or cm, mm, in, pt; anything else is an error.
+                if let Some(v) = s("value") {
+                    match measure::normalize_pref(v) {
+                        Some(u) => self.ui.units = u.to_string(),
+                        None => return Some(Err(format!("unknown unit `{v}`; use auto, cm, mm, in or pt"))),
+                    }
+                }
+                let m = measure::Measure::of(self);
+                json!({"units": self.ui.units, "effective": m.unit, "locale": m.locale})
+            }
             "ui.language" => {
                 // `auto` (follow the system) or a language code; anything else is an error.
                 if let Some(v) = s("value") {
@@ -343,10 +359,10 @@ impl WordApp {
     /// Document title for the title bar.
     pub fn title_stem(&self) -> String {
         match &self.session.path {
-            Some(p) => p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "Document1".into()),
+            Some(p) => p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| tl!("Document1").to_string()),
             None => {
                 if self.session.doc.core.title.is_empty() {
-                    "Document1".into()
+                    tl!("Document1").to_string()
                 } else {
                     self.session.doc.core.title.clone()
                 }

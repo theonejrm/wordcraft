@@ -169,6 +169,11 @@ impl Session {
         if let Some(l) = crate::dates::system_locale() {
             self.locale = l;
         }
+        // The untouched blank document a session starts with becomes the region's (A4 and
+        // German for de-DE); opened files and the sample are never changed.
+        if self.path.is_none() && !self.dirty && self.doc == Document::new() {
+            self.set_document(crate::sample::blank_in(&self.locale));
+        }
     }
 
     pub fn new(doc: Document) -> Self {
@@ -418,6 +423,13 @@ impl Session {
         }
         let f = &self.sel.focus;
         self.doc.para_at(f).map(|p| p.props_at(f.off).clone()).unwrap_or_default()
+    }
+
+    /// The language of text typed at the caret (`de-DE`): the run's, its styles' or the
+    /// document's default language.
+    pub fn typing_lang(&self) -> Option<String> {
+        let para_style = self.doc.para_at(&self.sel.focus).and_then(|p| p.props.style.clone());
+        self.doc.styles.resolve_char(para_style.as_deref(), &self.typing_props()).lang
     }
 
     /// Selected plain text.

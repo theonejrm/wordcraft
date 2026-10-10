@@ -165,15 +165,13 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                 if let Some(f) = combo(ui, "font", 150.0, &font, &fams, Some(&*prev)) {
                     let _ = app.run("format.font", json!({"name": f}));
                 }
-                let size = st
-                    .get("size")
-                    .and_then(Value::as_f64)
-                    .map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { format!("{s}") })
-                    .unwrap_or_default();
+                // Font sizes in the region's style: 10,5 in Germany.
+                let locale = app.session.locale.clone();
+                let size = st.get("size").and_then(Value::as_f64).map(|s| wordcraft_engine::region::decimal(s, 1, &locale)).unwrap_or_default();
                 let sizes: Vec<String> =
-                    wordcraft_engine::cmd::format::SIZES.iter().map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { s.to_string() }).collect();
+                    wordcraft_engine::cmd::format::SIZES.iter().map(|s| wordcraft_engine::region::decimal(f64::from(*s), 1, &locale)).collect();
                 if let Some(v) = combo(ui, "size", 52.0, &size, &sizes, None)
-                    && let Ok(x) = v.trim().parse::<f64>()
+                    && let Some(x) = wordcraft_engine::region::parse_decimal(&v, &locale)
                 {
                     let _ = app.run("format.size", json!({"size": x}));
                 }
@@ -315,8 +313,13 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                 small(ui, app, "justify", None, "Justify", "para.justify", json!({}), align == A::Justify);
                 ui.add_space(4.0);
                 menu_button(ui, app, "lineSpacing", None, "Line and Paragraph Spacing", false, |ui, app| {
+                    // 1,0 · 1,15 · 1,5 · 2,0 … with the region's decimal separator.
+                    let m = crate::measure::Measure::of(app);
+                    let (dec, _) = wordcraft_engine::region::separators(&app.session.locale);
                     for v in [1.0, 1.15, 1.5, 2.0, 2.5, 3.0] {
-                        mi(ui, app, &format!("{v}"), "para.lineSpacing", json!({"value": v}));
+                        let label = m.number(v, 2);
+                        let label = if label.contains(dec) { label } else { format!("{label}{dec}0") };
+                        mi(ui, app, &label, "para.lineSpacing", json!({"value": v}));
                     }
                     ui.separator();
                     mi(ui, app, "Add Space Before Paragraph", "para.addSpaceBefore", json!({}));
@@ -579,15 +582,18 @@ fn design(app: &mut WordApp, ui: &mut Ui) {
 fn layout(app: &mut WordApp, ui: &mut Ui) {
     group(ui, "Page Setup", Some("ui.dialog"), app, |ui, app| {
         menu_button(ui, app, "margins", Some("Margins"), "Margins", true, |ui, app| {
-            for (l, k) in [
-                ("Normal  1\" all", "normal"),
-                ("Narrow  0.5\" all", "narrow"),
-                ("Moderate", "moderate"),
-                ("Wide", "wide"),
-                ("Mirrored", "mirrored"),
-                ("Office 2003 Default", "office2003"),
-            ] {
-                mi(ui, app, l, "layout.margins", json!({"preset": k}));
+            let m = crate::measure::Measure::of(app);
+            for (k, l) in wordcraft_engine::cmd::page::MARGIN_PRESETS {
+                let Some((t, b, le, r)) = wordcraft_engine::cmd::page::margin_preset(k, &app.session.locale) else { continue };
+                let sizes = if t == b && b == le && le == r {
+                    crate::i18n::fmt(tl!("{size} all"), &[("size", &m.length(t))])
+                } else {
+                    crate::i18n::fmt(
+                        tl!("Top {top}, Bottom {bottom}, Left {left}, Right {right}"),
+                        &[("top", &m.length(t)), ("bottom", &m.length(b)), ("left", &m.length(le)), ("right", &m.length(r))],
+                    )
+                };
+                mi(ui, app, &format!("{}   {sizes}", tl!(l)), "layout.margins", json!({"preset": k}));
             }
             mi(ui, app, "Custom Margins…", "ui.dialog", json!({"name": "pageSetup"}));
         });
@@ -596,8 +602,9 @@ fn layout(app: &mut WordApp, ui: &mut Ui) {
             mi(ui, app, "Landscape", "layout.orientation", json!({"value": "landscape"}));
         });
         menu_button(ui, app, "size", Some("Size"), "Size", true, |ui, app| {
+            let m = crate::measure::Measure::of(app);
             for (n, w, h) in wordcraft_geom::PAPER_SIZES {
-                mi(ui, app, &format!("{n}   {:.2}\" × {:.2}\"", w / 72.0, h / 72.0), "layout.size", json!({"name": n}));
+                mi(ui, app, &format!("{}   {} × {}", crate::i18n::paper_name(n), m.length(*w), m.length(*h)), "layout.size", json!({"name": n}));
             }
         });
         menu_button(ui, app, "columns", Some("Columns"), "Columns", true, |ui, app| {
@@ -641,34 +648,35 @@ fn layout(app: &mut WordApp, ui: &mut Ui) {
             ui.label("");
             ui.label(egui::RichText::new(tl!("Spacing")).small().strong());
             ui.end_row();
-            let mut l = rp.indent_left / 72.0;
+            let m = crate::measure::Measure::of(app);
+            let mut l = rp.indent_left;
             let mut b = rp.space_before;
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(tl!("Left:")).small());
-                if ui.add(egui::DragValue::new(&mut l).speed(0.05).range(-11.0..=22.0).suffix("\"").max_decimals(2)).changed() {
-                    let _ = app.run("para.indents", json!({"left": l * 72.0}));
+                if m.length_field(ui, &mut l, -792.0, 1584.0).changed() {
+                    let _ = app.run("para.indents", json!({"left": l}));
                 }
             });
             ui.label("");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(tl!("Before:")).small());
-                if ui.add(egui::DragValue::new(&mut b).speed(1.0).range(0.0..=1584.0).suffix(" pt")).changed() {
+                if m.number_field(ui, &mut b, 0.0..=1584.0, 1.0, 1, " pt").changed() {
                     let _ = app.run("para.spacing", json!({"before": b}));
                 }
             });
             ui.end_row();
-            let mut r = rp.indent_right / 72.0;
+            let mut r = rp.indent_right;
             let mut a = rp.space_after;
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(tl!("Right:")).small());
-                if ui.add(egui::DragValue::new(&mut r).speed(0.05).range(-11.0..=22.0).suffix("\"").max_decimals(2)).changed() {
-                    let _ = app.run("para.indents", json!({"right": r * 72.0}));
+                if m.length_field(ui, &mut r, -792.0, 1584.0).changed() {
+                    let _ = app.run("para.indents", json!({"right": r}));
                 }
             });
             ui.label("");
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(tl!("After:")).small());
-                if ui.add(egui::DragValue::new(&mut a).speed(1.0).range(0.0..=1584.0).suffix(" pt")).changed() {
+                if m.number_field(ui, &mut a, 0.0..=1584.0, 1.0, 1, " pt").changed() {
                     let _ = app.run("para.spacing", json!({"after": a}));
                 }
             });

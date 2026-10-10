@@ -807,3 +807,46 @@
 	Version	版本
 	% of all commits	佔全部提交的 %
 	Lines +/−	行 +/−
+
+# Measurement units, number formats, paper, status bar language.
+	Centimeters	公分
+	Millimeters	公釐
+	Inches	英寸
+	Points	點
+	Automatic ({unit})	自動（{unit}）
+	Show measurements in units of:	度量單位：
+	Centered	置中
+	Justified	左右對齊
+	{size} all	四周皆為 {size}
+	Top {top}, Bottom {bottom}, Left {left}, Right {right}	上 {top}，下 {bottom}，左 {left}，右 {right}
+	Normal	標準
+	Narrow	窄
+	{name} — set your name in File › Options	{name} — 在「檔案 › 選項」中設定你的名稱
+	{cols}×{rows} Table	{cols}×{rows} 表格
+	{count} results	{count} 個結果
+	{contributors} contributors · {commits} commits	{contributors} 位貢獻者 · {commits} 次提交
+	English (United Kingdom)	英文（英國）
+	English	英文
+	German (Germany)	德文（德國）
+	German (Austria)	德文（奧地利）
+	German (Switzerland)	德文（瑞士）
+	German	德文
+	French (France)	法文（法國）
+	French	法文
+	Spanish (Spain)	西班牙文（西班牙）
+	Spanish	西班牙文
+	Italian (Italy)	義大利文（義大利）
+	Italian	義大利文
+	Dutch (Netherlands)	荷蘭文（荷蘭）
+	Dutch	荷蘭文
+	Polish (Poland)	波蘭文（波蘭）
+	Portuguese (Brazil)	葡萄牙文（巴西）
+	Portuguese	葡萄牙文
+	Japanese	日文
+	Chinese (Simplified)	中文（簡體）
+	Chinese (Traditional)	中文（繁體）
+	Chinese	中文
+	Swedish	瑞典文
+	Envelope #10 paper	10 號信封
+	Envelope DL paper	DL 信封
+	Document1	文件1

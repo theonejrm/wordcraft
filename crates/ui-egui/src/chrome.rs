@@ -78,7 +78,7 @@ pub fn title_bar(app: &mut WordApp, ui: &mut Ui) {
                     ui.painter().circle_filled(r.center(), 12.0, t.accent);
                     let initials: String = app.session.author.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect();
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, initials, semibold(10.5), egui::Color32::WHITE);
-                    resp.on_hover_text(format!("{} — set your name in File › Options", app.session.author));
+                    resp.on_hover_text(crate::i18n::fmt(tl!("{name} — set your name in File › Options"), &[("name", &app.session.author)]));
                     ui.add_space(8.0);
                     if app.ui.show_discord {
                         let (r, resp) = ui.allocate_exact_size(vec2(84.0, 22.0), Sense::click());
@@ -162,18 +162,22 @@ pub fn status_bar(app: &mut WordApp, ui: &mut Ui) {
                 let st = |ui: &mut Ui, s: &str| {
                     ui.add(egui::Label::new(egui::RichText::new(s).font(regular(11.5)).color(t.text_dim)).sense(Sense::click()))
                 };
-                if st(ui, &crate::i18n::fmt(tl!("Page {page} of {pages}"), &[("page", &page.to_string()), ("pages", &l.pages.len().to_string())]))
-                    .on_hover_text(tl!("Go To (⌘⌥G)"))
-                    .clicked()
+                let m = crate::measure::Measure::of(app);
+                if st(
+                    ui,
+                    &crate::i18n::fmt(tl!("Page {page} of {pages}"), &[("page", &m.count(page as u64)), ("pages", &m.count(l.pages.len() as u64))]),
+                )
+                .on_hover_text(format!("{} ({})", tl!("Go To"), crate::widgets::shortcut_text(app, "edit.goto")))
+                .clicked()
                 {
                     let _ = app.run("ui.dialog", json!({"name": "goto"}));
                 }
                 let words = app.cached_word_count();
                 let wtxt = if app.session.sel.is_collapsed() {
-                    crate::i18n::fmt(tl!("{words} words"), &[("words", &words.to_string())])
+                    crate::i18n::fmt(tl!("{words} words"), &[("words", &m.count(words as u64))])
                 } else {
                     let sw = wordcraft_doc::count_words(&app.session.selected_text());
-                    crate::i18n::fmt(tl!("{selected} of {words} words"), &[("selected", &sw.to_string()), ("words", &words.to_string())])
+                    crate::i18n::fmt(tl!("{selected} of {words} words"), &[("selected", &m.count(sw as u64)), ("words", &m.count(words as u64))])
                 };
                 if st(ui, &wtxt).clicked() {
                     let _ = app.run("ui.dialog", json!({"name": "wordCount"}));
@@ -181,7 +185,8 @@ pub fn status_bar(app: &mut WordApp, ui: &mut Ui) {
                 if app.session.sel.focus.story != StoryRef::Body {
                     st(ui, tl!("Editing header/footer"));
                 }
-                st(ui, tl!("English (United States)"));
+                let lang = app.session.typing_lang().unwrap_or_else(|| "en-US".into());
+                st(ui, &language_name(&lang));
                 if app.session.doc.settings.track_changes {
                     st(ui, tl!("Track Changes: On"));
                 }
@@ -273,4 +278,42 @@ impl WordApp {
         }
         self.word_count.1
     }
+}
+
+/// A document language tag (`de-DE`) as the status bar shows it, in the interface language
+/// (`Deutsch (Deutschland)`); a language without a name shows its tag.
+pub fn language_name(tag: &str) -> String {
+    const NAMES: [(&str, &str); 24] = [
+        ("en-us", "English (United States)"),
+        ("en-gb", "English (United Kingdom)"),
+        ("en", "English"),
+        ("de-de", "German (Germany)"),
+        ("de-at", "German (Austria)"),
+        ("de-ch", "German (Switzerland)"),
+        ("de", "German"),
+        ("fr-fr", "French (France)"),
+        ("fr", "French"),
+        ("es-es", "Spanish (Spain)"),
+        ("es", "Spanish"),
+        ("it-it", "Italian (Italy)"),
+        ("it", "Italian"),
+        ("nl-nl", "Dutch (Netherlands)"),
+        ("nl", "Dutch"),
+        ("pl-pl", "Polish (Poland)"),
+        ("pt-br", "Portuguese (Brazil)"),
+        ("pt", "Portuguese"),
+        ("ja-jp", "Japanese"),
+        ("ja", "Japanese"),
+        ("zh-cn", "Chinese (Simplified)"),
+        ("zh-tw", "Chinese (Traditional)"),
+        ("zh", "Chinese"),
+        ("sv", "Swedish"),
+    ];
+    let key = tag.replace('_', "-").to_ascii_lowercase();
+    let primary = key.split('-').next().unwrap_or("");
+    NAMES
+        .iter()
+        .find(|(k, _)| *k == key)
+        .or_else(|| NAMES.iter().find(|(k, _)| *k == primary))
+        .map_or_else(|| tag.to_string(), |(_, n)| tl!(n).to_string())
 }

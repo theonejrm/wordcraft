@@ -32,13 +32,15 @@ fn key_names(sc: &str) -> String {
         Some(mods) => (mods, "+"),
         None => sc.rsplit_once('+').unwrap_or(("", sc)),
     };
-    let name = |k: &str| {
-        let entry = format!("{k} key");
-        if crate::i18n::has(crate::i18n::current(), &entry) { tl!(&entry).to_string() } else { k.to_string() }
-    };
-    let mut parts: Vec<String> = mods.split('+').filter(|m| !m.is_empty()).map(|m| name(if m == "Mod" { "Ctrl" } else { m })).collect();
-    parts.push(name(key));
+    let mut parts: Vec<String> = mods.split('+').filter(|m| !m.is_empty()).map(|m| key_label(if m == "Mod" { "Ctrl" } else { m })).collect();
+    parts.push(key_label(key));
     parts.join("+")
+}
+
+/// One key's name on this language's keyboards (`Ctrl` → `Strg`); see [`key_names`].
+pub fn key_label(k: &str) -> String {
+    let entry = format!("{k} key");
+    if crate::i18n::has(crate::i18n::current(), &entry) { tl!(&entry).to_string() } else { k.to_string() }
 }
 
 /// `label` is already in the interface language.

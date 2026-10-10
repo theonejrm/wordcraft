@@ -374,10 +374,12 @@ fn word_count(s: &mut Session, _: &Value) -> CmdResult {
 fn para_issues(s: &Session, story: StoryRef, path: &wordcraft_doc::Path) -> Vec<(Pos, Pos, wordcraft_proof::Issue)> {
     let Some(p) = s.doc.para(story, path) else { return Vec::new() };
     let text = wordcraft_layout::para::proof_text(p);
+    let foreign = wordcraft_layout::para::unproofed_ranges(&s.doc.styles, p);
     let mut v: Vec<wordcraft_proof::Issue> = wordcraft_proof::check_spelling(&text);
     v.extend(wordcraft_proof::check_grammar(&text));
     v.sort_by_key(|i| i.start);
     v.into_iter()
+        .filter(|i| !foreign.iter().any(|r| r.start < i.end && i.start < r.end))
         .filter(|i| !p.run_ranges().any(|(r, c)| r.start < i.end && i.start < r.end && (c.no_proof == Some(true) || c.link.is_some())))
         .map(|i| (Pos { story, path: path.clone(), off: i.start }, Pos { story, path: path.clone(), off: i.end }, i))
         .collect()

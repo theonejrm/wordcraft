@@ -817,3 +817,46 @@
 	Version	版本
 	% of all commits	占全部提交的 %
 	Lines +/−	行 +/−
+
+# Measurement units, number formats, paper, status bar language.
+	Centimeters	厘米
+	Millimeters	毫米
+	Inches	英寸
+	Points	磅
+	Automatic ({unit})	自动（{unit}）
+	Show measurements in units of:	度量单位：
+	Centered	居中
+	Justified	两端对齐
+	{size} all	四周均为 {size}
+	Top {top}, Bottom {bottom}, Left {left}, Right {right}	上 {top}，下 {bottom}，左 {left}，右 {right}
+	Normal	普通
+	Narrow	窄
+	{name} — set your name in File › Options	{name} — 在“文件 › 选项”中设置你的姓名
+	{cols}×{rows} Table	{cols}×{rows} 表格
+	{count} results	{count} 个结果
+	{contributors} contributors · {commits} commits	{contributors} 位贡献者 · {commits} 次提交
+	English (United Kingdom)	英语（英国）
+	English	英语
+	German (Germany)	德语（德国）
+	German (Austria)	德语（奥地利）
+	German (Switzerland)	德语（瑞士）
+	German	德语
+	French (France)	法语（法国）
+	French	法语
+	Spanish (Spain)	西班牙语（西班牙）
+	Spanish	西班牙语
+	Italian (Italy)	意大利语（意大利）
+	Italian	意大利语
+	Dutch (Netherlands)	荷兰语（荷兰）
+	Dutch	荷兰语
+	Polish (Poland)	波兰语（波兰）
+	Portuguese (Brazil)	葡萄牙语（巴西）
+	Portuguese	葡萄牙语
+	Japanese	日语
+	Chinese (Simplified)	中文（简体）
+	Chinese (Traditional)	中文（繁体）
+	Chinese	中文
+	Swedish	瑞典语
+	Envelope #10 paper	10 号信封
+	Envelope DL paper	DL 信封
+	Document1	文档1

@@ -243,7 +243,14 @@ pub fn contributors_ui(ui: &mut egui::Ui) {
         }
     });
     let list = sorted(CONTRIBUTORS, v.names, v.key, v.ascending);
-    ui.label(RichText::new(format!("{} contributors · {} commits", list.len(), group(TOTAL_COMMITS))).small().weak());
+    ui.label(
+        RichText::new(crate::i18n::fmt(
+            tl!("{contributors} contributors · {commits} commits"),
+            &[("contributors", &list.len().to_string()), ("commits", &group(TOTAL_COMMITS))],
+        ))
+        .small()
+        .weak(),
+    );
     ui.separator();
     egui::ScrollArea::both().auto_shrink([false, true]).max_height(360.0).show(ui, |ui| {
         if list.is_empty() {

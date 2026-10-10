@@ -114,6 +114,7 @@ fn template_tile(ui: &mut Ui, app: &mut WordApp, label: &str, template: &str) {
         let key = format!("tpl:{template}:{ppp}");
         let tex = ui.ctx().data(|d| d.get_temp::<egui::TextureHandle>(egui::Id::new(&key))).or_else(|| {
             let mut s = wordcraft_engine::Session::new(wordcraft_doc::Document::new());
+            s.locale = app.session.locale.clone();
             let _ = s.run("file.new", &json!({"template": template}));
             let l = s.export_layout();
             let page = l.pages.first()?;
@@ -256,6 +257,8 @@ fn options_page(app: &mut WordApp, ui: &mut Ui) {
     heading(ui, "Options");
     ui.label(egui::RichText::new(tl!("General")).font(semibold(15.0)));
     language_picker(app, ui);
+    ui.add_space(8.0);
+    units_picker(app, ui);
     ui.horizontal(|ui| {
         ui.label(tl!("User name:"));
         let mut n = app.session.author.clone();
@@ -282,6 +285,33 @@ fn options_page(app: &mut WordApp, ui: &mut Ui) {
     ui.add_space(10.0);
     ui.label(egui::RichText::new(tl!("Agents")).font(semibold(15.0)));
     ui.label(tl!("Every command is available to scripts and AI agents: run `wordcraft-cli mcp` for an MCP server, or start the app with `--control <port>` for the JSON control channel."));
+}
+
+/// File ▸ Options ▸ Measurement units: the region's (the default) or one picked by hand.
+fn units_picker(app: &mut WordApp, ui: &mut Ui) {
+    use crate::measure::{AUTO, UNITS};
+    let name = |u: &str| match u {
+        "cm" => tl!("Centimeters"),
+        "mm" => tl!("Millimeters"),
+        "in" => tl!("Inches"),
+        _ => tl!("Points"),
+    };
+    let region = UNITS.iter().find(|(_, u)| *u == wordcraft_engine::region::unit(&app.session.locale)).map(|(k, _)| *k).unwrap_or("in");
+    let auto_label = crate::i18n::fmt(tl!("Automatic ({unit})"), &[("unit", name(region))]);
+    let current = if app.ui.units == AUTO { auto_label.clone() } else { name(&app.ui.units).to_string() };
+    ui.horizontal(|ui| {
+        ui.label(tl!("Show measurements in units of:"));
+        egui::ComboBox::from_id_salt("measurement_units").selected_text(current).width(180.0).show_ui(ui, |ui| {
+            if ui.selectable_label(app.ui.units == AUTO, auto_label.as_str()).clicked() {
+                let _ = app.run("ui.units", json!({"value": AUTO}));
+            }
+            for (k, _) in UNITS {
+                if ui.selectable_label(app.ui.units == k, name(k)).clicked() {
+                    let _ = app.run("ui.units", json!({"value": k}));
+                }
+            }
+        });
+    });
 }
 
 /// File ▸ Options ▸ Interface language: follow the system (the default) or pick one (#8).

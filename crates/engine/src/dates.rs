@@ -6,6 +6,8 @@
 
 use chrono::{Datelike, Local, Timelike};
 
+use crate::region::split;
+
 /// A local wall-clock moment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LocalTime {
@@ -50,16 +52,6 @@ const SLASH: Pictures = Pictures { short: "dd/MM/yyyy", long: "dd/MM/yyyy", time
 const DOT: Pictures = Pictures { short: "dd.MM.yyyy", long: "dd.MM.yyyy", time: "HH:mm" };
 const DASH: Pictures = Pictures { short: "dd-MM-yyyy", long: "dd-MM-yyyy", time: "HH:mm" };
 const ISO: Pictures = Pictures { short: "yyyy-MM-dd", long: "yyyy-MM-dd", time: "HH:mm" };
-
-/// `de_DE.UTF-8` → (`de`, `de`), `en-GB` → (`en`, `gb`).
-fn split(locale: &str) -> (String, String) {
-    let base = locale.split(['.', '@']).next().unwrap_or("").replace('_', "-").to_ascii_lowercase();
-    let mut parts = base.split('-').filter(|p| !p.is_empty());
-    let lang = parts.next().unwrap_or("").to_string();
-    // The region is the first two-letter (or three-digit) subtag after the language.
-    let region = parts.find(|p| p.len() == 2 || (p.len() == 3 && p.chars().all(|c| c.is_ascii_digit()))).unwrap_or("").to_string();
-    (lang, region)
-}
 
 fn pictures(locale: &str) -> &'static Pictures {
     let (lang, region) = split(locale);

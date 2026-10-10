@@ -228,6 +228,13 @@ pub fn style_name(name: &str) -> String {
     if has(current(), &entry) { t(&entry).to_string() } else { name.to_string() }
 }
 
+/// A paper size's name (`Envelope DL` → `Umschlag DL`). Paper names have their own `… paper`
+/// entries, apart from identically spelled labels (`Letter` the template); most stay as they are.
+pub fn paper_name(name: &str) -> String {
+    let entry = format!("{name} paper");
+    if has(current(), &entry) { t(&entry).to_string() } else { name.to_string() }
+}
+
 /// A label with an action after a fixed English prefix, e.g. `Undo Typing`: both parts translated
 /// where the catalog has them.
 pub fn prefixed(prefix: &str, rest: &str) -> String {

@@ -133,7 +133,11 @@ impl Dialog {
         Some(match name {
             "font" => Dialog::Font {
                 font: s("font"),
-                size: st.get("size").and_then(Value::as_f64).map(|v| v.to_string()).unwrap_or_default(),
+                size: st
+                    .get("size")
+                    .and_then(Value::as_f64)
+                    .map(|v| wordcraft_engine::region::decimal(v, 1, &app.session.locale))
+                    .unwrap_or_default(),
                 bold: b("bold"),
                 italic: b("italic"),
                 underline: b("underline"),
@@ -155,9 +159,9 @@ impl Dialog {
                 };
                 Dialog::Paragraph {
                     align: format!("{:?}", rp.align).to_lowercase(),
-                    left: rp.indent_left / 72.0,
-                    right: rp.indent_right / 72.0,
-                    first: rp.indent_first / 72.0,
+                    left: rp.indent_left,
+                    right: rp.indent_right,
+                    first: rp.indent_first,
                     before: rp.space_before,
                     after: rp.space_after,
                     line,
@@ -181,10 +185,10 @@ impl Dialog {
             "pageSetup" => {
                 let sp = wordcraft_engine::cmd::page::sect(&app.session);
                 Dialog::PageSetup {
-                    top: sp.margin_top / 72.0,
-                    bottom: sp.margin_bottom / 72.0,
-                    left: sp.margin_left / 72.0,
-                    right: sp.margin_right / 72.0,
+                    top: sp.margin_top,
+                    bottom: sp.margin_bottom,
+                    left: sp.margin_left,
+                    right: sp.margin_right,
                     landscape: sp.landscape,
                 }
             }
@@ -234,7 +238,11 @@ pub fn table_grid_picker(ui: &mut Ui, app: &mut WordApp) {
     let t = Tokens::get(ui.ctx());
     let id = egui::Id::new("table_picker_hover");
     let hover: (usize, usize) = ui.data(|d| d.get_temp(id)).unwrap_or((0, 0));
-    ui.label(if hover.0 > 0 { format!("{}x{} Table", hover.1, hover.0) } else { "Insert Table".to_string() });
+    ui.label(if hover.0 > 0 {
+        crate::i18n::fmt(tl!("{cols}×{rows} Table"), &[("cols", &hover.1.to_string()), ("rows", &hover.0.to_string())])
+    } else {
+        tl!("Insert Table").to_string()
+    });
     let mut new_hover = (0, 0);
     let mut clicked = None;
     egui::Grid::new("tgp").spacing(vec2(2.0, 2.0)).show(ui, |ui| {
@@ -337,7 +345,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 ui.text_edit_singleline(color);
                 ui.end_row();
                 ui.label(tl!("Spacing (pt):"));
-                ui.add(egui::DragValue::new(spacing).speed(0.1).range(-20.0..=20.0));
+                crate::measure::Measure::of(app).number_field(ui, spacing, -20.0..=20.0, 0.1, 1, "");
                 ui.end_row();
             });
             ui.separator();
@@ -369,7 +377,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 if !font.trim().is_empty() {
                     props["font"] = json!(font.trim());
                 }
-                if let Ok(s) = size.trim().parse::<f64>() {
+                if let Some(s) = wordcraft_engine::region::parse_decimal(size, &app.session.locale) {
                     props["size"] = json!(s);
                 }
                 if let Some(c) = wordcraft_doc::Rgb::parse(color) {
@@ -381,31 +389,34 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
         }
         Dialog::Paragraph { align, left, right, first, before, after, line, keep_next, keep_lines, page_break, widow } => {
             ui.label(egui::RichText::new(tl!("General")).font(semibold(12.5)));
-            egui::ComboBox::from_label(tl!("Alignment")).selected_text(align.clone()).show_ui(ui, |ui| {
-                for a in ["left", "center", "right", "justify"] {
-                    ui.selectable_value(align, a.to_string(), a);
+            let names = [("left", tl!("Left")), ("center", tl!("Centered")), ("right", tl!("Right")), ("justify", tl!("Justified"))];
+            let shown = names.iter().find(|(k, _)| *k == align.as_str()).map_or(align.as_str(), |(_, n)| n).to_string();
+            egui::ComboBox::from_label(tl!("Alignment")).selected_text(shown).show_ui(ui, |ui| {
+                for (a, n) in names {
+                    ui.selectable_value(align, a.to_string(), n);
                 }
             });
+            let m = crate::measure::Measure::of(app);
             ui.label(egui::RichText::new(tl!("Indentation")).font(semibold(12.5)));
             egui::Grid::new("ind").num_columns(4).show(ui, |ui| {
                 ui.label(tl!("Left:"));
-                ui.add(egui::DragValue::new(left).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, left, -792.0, 1584.0);
                 ui.label(tl!("Right:"));
-                ui.add(egui::DragValue::new(right).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, right, -792.0, 1584.0);
                 ui.end_row();
                 ui.label(tl!("First line:"));
-                ui.add(egui::DragValue::new(first).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, first, -792.0, 1584.0);
                 ui.end_row();
             });
             ui.label(egui::RichText::new(tl!("Spacing")).font(semibold(12.5)));
             egui::Grid::new("sp").num_columns(4).show(ui, |ui| {
                 ui.label(tl!("Before:"));
-                ui.add(egui::DragValue::new(before).speed(1.0).range(0.0..=1584.0).suffix(" pt"));
+                m.number_field(ui, before, 0.0..=1584.0, 1.0, 1, " pt");
                 ui.label(tl!("Line spacing:"));
-                ui.add(egui::DragValue::new(line).speed(0.05).range(0.5..=5.0));
+                m.number_field(ui, line, 0.5..=5.0, 0.05, 2, "");
                 ui.end_row();
                 ui.label(tl!("After:"));
-                ui.add(egui::DragValue::new(after).speed(1.0).range(0.0..=1584.0).suffix(" pt"));
+                m.number_field(ui, after, 0.0..=1584.0, 1.0, 1, " pt");
                 ui.end_row();
             });
             ui.label(egui::RichText::new(tl!("Line and Page Breaks")).font(semibold(12.5)));
@@ -419,7 +430,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 let _ = app.run(
                     "para.set",
                     json!({"props": {
-                        "indentLeft": *left * 72.0, "indentRight": *right * 72.0, "indentFirst": *first * 72.0,
+                        "indentLeft": *left, "indentRight": *right, "indentFirst": *first,
                         "spaceBefore": *before, "spaceAfter": *after, "lineSpacing": {"rule": "multiple", "value": *line},
                         "keepNext": *keep_next, "keepLines": *keep_lines, "pageBreakBefore": *page_break, "widowControl": *widow,
                     }}),
@@ -514,16 +525,17 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
         }
         Dialog::PageSetup { top, bottom, left, right, landscape } => {
             ui.label(egui::RichText::new(tl!("Margins")).font(semibold(12.5)));
+            let m = crate::measure::Measure::of(app);
             egui::Grid::new("ps").num_columns(4).show(ui, |ui| {
                 ui.label(tl!("Top:"));
-                ui.add(egui::DragValue::new(top).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, top, 0.0, 1584.0);
                 ui.label(tl!("Bottom:"));
-                ui.add(egui::DragValue::new(bottom).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, bottom, 0.0, 1584.0);
                 ui.end_row();
                 ui.label(tl!("Left:"));
-                ui.add(egui::DragValue::new(left).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, left, 0.0, 1584.0);
                 ui.label(tl!("Right:"));
-                ui.add(egui::DragValue::new(right).speed(0.05).suffix("\"").max_decimals(2));
+                m.length_field(ui, right, 0.0, 1584.0);
                 ui.end_row();
             });
             ui.label(egui::RichText::new(tl!("Orientation")).font(semibold(12.5)));
@@ -534,8 +546,7 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
             let (ok, cancel) = buttons(ui, tl!("OK"));
             if ok {
                 let _ = app.run("layout.orientation", json!({"value": if *landscape { "landscape" } else { "portrait" }}));
-                let _ =
-                    app.run("layout.margins", json!({"top": *top * 72.0, "bottom": *bottom * 72.0, "left": *left * 72.0, "right": *right * 72.0}));
+                let _ = app.run("layout.margins", json!({"top": *top, "bottom": *bottom, "left": *left, "right": *right}));
             }
             ok || cancel
         }
@@ -656,15 +667,16 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 ui.text_edit_singleline(font);
                 ui.end_row();
                 ui.label(tl!("Size:"));
-                ui.add(egui::DragValue::new(size).range(1.0..=1638.0).speed(0.5));
+                crate::measure::Measure::of(app).number_field(ui, size, 1.0..=1638.0, 0.5, 1, " pt");
                 ui.end_row();
                 ui.label(tl!("Color:"));
                 ui.text_edit_singleline(color);
                 ui.end_row();
                 ui.label(tl!("Space before/after:"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(before).range(0.0..=1584.0));
-                    ui.add(egui::DragValue::new(after).range(0.0..=1584.0));
+                    let m = crate::measure::Measure::of(app);
+                    m.number_field(ui, before, 0.0..=1584.0, 1.0, 1, " pt");
+                    m.number_field(ui, after, 0.0..=1584.0, 1.0, 1, " pt");
                 });
                 ui.end_row();
             });

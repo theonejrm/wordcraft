@@ -133,46 +133,104 @@ pub fn sample_document() -> Document {
     d
 }
 
-/// A block-style letter.
+/// A block-style letter (US English).
 pub fn letter() -> Document {
+    letter_in("en-US")
+}
+
+/// A letter for the region of `locale`: German (DIN 5008 order, A4) for `de-*`, US English
+/// otherwise; paper, margins and language from [`crate::region::localize_new`].
+pub fn letter_in(locale: &str) -> Document {
     let mut d = Document::new();
-    let lines: Vec<Paragraph> = vec![
-        styled("Your Name", "Title"),
-        para("123 Your Street · City, ST 00000 · you@example.com"),
-        para(""),
-        para(&crate::cmd::insert::format_date("MMMM d, yyyy", "en-US")),
-        para(""),
-        para("Recipient Name"),
-        para("Title, Company"),
-        para("Street Address"),
-        para(""),
-        para("Dear Recipient,"),
-        para(
-            "Start with a sentence that says why you are writing. Keep paragraphs short and specific, and close with what you would like to happen next.",
-        ),
-        para("Thank you for your time."),
-        para("Sincerely,"),
-        para(""),
-        para("Your Name"),
-    ];
+    crate::region::localize_new(&mut d, locale);
+    let date = crate::cmd::insert::format_date(crate::dates::long_date_picture(locale), locale);
+    let lines: Vec<Paragraph> = if crate::region::language(locale) == "de" {
+        let mut dated = para(&format!("Musterstadt, {date}"));
+        dated.props.align = Some(Align::Right);
+        let mut subject = Paragraph::new();
+        add(&mut subject, "Worum es in diesem Schreiben geht", bold());
+        vec![
+            styled("Ihr Name", "Title"),
+            para("Musterstraße 1 · 12345 Musterstadt · ihr.name@example.com"),
+            para(""),
+            para("Name der Empfängerin oder des Empfängers"),
+            para("Firma"),
+            para("Straße und Hausnummer"),
+            para("PLZ Ort"),
+            para(""),
+            dated,
+            para(""),
+            subject,
+            para(""),
+            para("Sehr geehrte Damen und Herren,"),
+            para(
+                "beginnen Sie mit einem Satz, der den Anlass Ihres Schreibens nennt. Halten Sie die Absätze kurz und konkret, und schließen Sie mit dem, was als Nächstes geschehen soll.",
+            ),
+            para("Vielen Dank für Ihre Zeit."),
+            para("Mit freundlichen Grüßen"),
+            para(""),
+            para("Ihr Name"),
+        ]
+    } else {
+        vec![
+            styled("Your Name", "Title"),
+            para("123 Your Street · City, ST 00000 · you@example.com"),
+            para(""),
+            para(&date),
+            para(""),
+            para("Recipient Name"),
+            para("Title, Company"),
+            para("Street Address"),
+            para(""),
+            para("Dear Recipient,"),
+            para(
+                "Start with a sentence that says why you are writing. Keep paragraphs short and specific, and close with what you would like to happen next.",
+            ),
+            para("Thank you for your time."),
+            para("Sincerely,"),
+            para(""),
+            para("Your Name"),
+        ]
+    };
     d.body = lines.into_iter().map(para_block).collect();
     d
 }
 
-/// A one-page résumé.
+/// A one-page résumé (US English).
 pub fn resume() -> Document {
+    resume_in("en-US")
+}
+
+/// A one-page résumé for the region of `locale` (German for `de-*`).
+pub fn resume_in(locale: &str) -> Document {
     let mut d = Document::new();
-    let mut b: Vec<Block> =
-        vec![Block::Para(styled("Alex Rivera", "Title")), Block::Para(para("Illustrator · alex@example.com · portfolio.example.com"))];
-    for (head, items) in [
-        ("Experience", vec![("Lead Illustrator, Harbor Books", "2021 – present"), ("Freelance Illustrator", "2016 – 2021")]),
-        ("Education", vec![("BFA Illustration, Coastal College of Art", "2016")]),
-        ("Skills", vec![("Ink, gouache, digital painting, book layout, lettering", "")]),
-    ] {
+    crate::region::localize_new(&mut d, locale);
+    let german = crate::region::language(locale) == "de";
+    let (name, line) = if german {
+        ("Alex Becker", "Illustratorin · alex@example.com · portfolio.example.com")
+    } else {
+        ("Alex Rivera", "Illustrator · alex@example.com · portfolio.example.com")
+    };
+    let sections = if german {
+        vec![
+            ("Berufserfahrung", vec![("Leitende Illustratorin, Hafenverlag", "seit 2021"), ("Freiberufliche Illustratorin", "2016 – 2021")]),
+            ("Ausbildung", vec![("Bachelor of Arts Illustration, Kunsthochschule an der Küste", "2016")]),
+            ("Kenntnisse", vec![("Tusche, Gouache, digitale Malerei, Buchgestaltung, Schriftgestaltung", "")]),
+        ]
+    } else {
+        vec![
+            ("Experience", vec![("Lead Illustrator, Harbor Books", "2021 – present"), ("Freelance Illustrator", "2016 – 2021")]),
+            ("Education", vec![("BFA Illustration, Coastal College of Art", "2016")]),
+            ("Skills", vec![("Ink, gouache, digital painting, book layout, lettering", "")]),
+        ]
+    };
+    let right = crate::region::text_width(&d);
+    let mut b: Vec<Block> = vec![Block::Para(styled(name, "Title")), Block::Para(para(line))];
+    for (head, items) in sections {
         b.push(Block::Para(styled(head, "Heading1")));
         for (what, when) in items {
             let mut p = para(what);
-            p.props.tabs = Some(vec![TabStop { pos: 468.0, align: TabAlign::Right, leader: TabLeader::None }]);
+            p.props.tabs = Some(vec![TabStop { pos: right, align: TabAlign::Right, leader: TabLeader::None }]);
             if !when.is_empty() {
                 add(&mut p, &format!("\t{when}"), italic());
             }
@@ -183,23 +241,66 @@ pub fn resume() -> Document {
     d
 }
 
-/// A report with a cover heading and sections.
+/// A report with a cover heading and sections (US English).
 pub fn report() -> Document {
+    report_in("en-US")
+}
+
+/// A report for the region of `locale` (German for `de-*`).
+pub fn report_in(locale: &str) -> Document {
     let mut d = Document::new();
+    crate::region::localize_new(&mut d, locale);
+    let t: [&str; 11] = if crate::region::language(locale) == "de" {
+        [
+            "Titel des Berichts",
+            "Untertitel oder Datum",
+            "Zusammenfassung",
+            "Fassen Sie die Ergebnisse in zwei oder drei Sätzen zusammen.",
+            "Hintergrund",
+            "Beschreiben Sie den Zusammenhang und die Frage, die der Bericht beantwortet.",
+            "Ergebnisse",
+            "Erstes Ergebnis",
+            "Erläutern Sie die Belege.",
+            "Empfehlungen",
+            "Führen Sie auf, was als Nächstes geschehen soll.",
+        ]
+    } else {
+        [
+            "Report Title",
+            "Subtitle or date",
+            "Summary",
+            "Summarise the findings in two or three sentences.",
+            "Background",
+            "Describe the context and the question the report answers.",
+            "Findings",
+            "First finding",
+            "Explain the evidence.",
+            "Recommendations",
+            "List what should happen next.",
+        ]
+    };
+    let [title, subtitle, summary, summary_text, background, background_text, findings, first, first_text, recs, recs_text] = t;
     let b: Vec<Block> = vec![
-        Block::Para(styled("Report Title", "Title")),
-        Block::Para(styled("Subtitle or date", "Subtitle")),
-        Block::Para(styled("Summary", "Heading1")),
-        Block::Para(para("Summarise the findings in two or three sentences.")),
-        Block::Para(styled("Background", "Heading1")),
-        Block::Para(para("Describe the context and the question the report answers.")),
-        Block::Para(styled("Findings", "Heading1")),
-        Block::Para(styled("First finding", "Heading2")),
-        Block::Para(para("Explain the evidence.")),
-        Block::Para(styled("Recommendations", "Heading1")),
-        Block::Para(para("List what should happen next.")),
+        Block::Para(styled(title, "Title")),
+        Block::Para(styled(subtitle, "Subtitle")),
+        Block::Para(styled(summary, "Heading1")),
+        Block::Para(para(summary_text)),
+        Block::Para(styled(background, "Heading1")),
+        Block::Para(para(background_text)),
+        Block::Para(styled(findings, "Heading1")),
+        Block::Para(styled(first, "Heading2")),
+        Block::Para(para(first_text)),
+        Block::Para(styled(recs, "Heading1")),
+        Block::Para(para(recs_text)),
     ];
     d.body = b.into_iter().map(std::sync::Arc::new).collect();
+    d
+}
+
+/// A blank document for the region of `locale` (A4 and German for `de-DE`).
+pub fn blank_in(locale: &str) -> Document {
+    let mut d = Document::new();
+    crate::region::localize_new(&mut d, locale);
     d
 }
 
@@ -209,10 +310,28 @@ mod tests {
 
     #[test]
     fn samples_are_valid() {
-        for d in [sample_document(), letter(), resume(), report()] {
+        for d in [sample_document(), letter(), resume(), report(), letter_in("de-DE"), resume_in("de-DE"), report_in("de-DE")] {
             assert!(d.word_count() > 5);
             let l = wordcraft_layout::layout(&d, &mut wordcraft_layout::LayoutCache::new(), &Default::default());
             assert!(!l.pages.is_empty());
         }
+    }
+
+    #[test]
+    fn german_templates_are_german_and_a4() {
+        for d in [blank_in("de-DE"), letter_in("de-DE"), resume_in("de-DE"), report_in("de-DE")] {
+            let s = d.sections().first().map(|(_, s)| (*s).clone()).unwrap_or_default();
+            assert_eq!(wordcraft_geom::paper_name(s.page_w, s.page_h), Some("A4"));
+            assert_eq!(d.styles.default_chr.lang.as_deref(), Some("de-DE"));
+        }
+        assert!(letter_in("de-DE").plain_text(wordcraft_doc::StoryRef::Body).contains("Mit freundlichen Grüßen"));
+        // The résumé's right tab sits at the right margin of the A4 page.
+        let r = resume_in("de-DE");
+        let tab = r.body.iter().find_map(|b| match &**b {
+            Block::Para(p) => p.props.tabs.as_ref().and_then(|t| t.first()).map(|t| t.pos),
+            _ => None,
+        });
+        assert!(tab.is_some_and(|t| (t - crate::region::text_width(&r)).abs() < 0.01));
+        assert_eq!(letter(), letter_in("en-US"));
     }
 }

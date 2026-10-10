@@ -806,3 +806,46 @@
 	Version	バージョン
 	% of all commits	全コミット中の %
 	Lines +/−	行 +/−
+
+# Measurement units, number formats, paper, status bar language.
+	Centimeters	センチメートル
+	Millimeters	ミリメートル
+	Inches	インチ
+	Points	ポイント
+	Automatic ({unit})	自動 ({unit})
+	Show measurements in units of:	単位:
+	Centered	中央揃え
+	Justified	両端揃え
+	{size} all	上下左右 {size}
+	Top {top}, Bottom {bottom}, Left {left}, Right {right}	上 {top}、下 {bottom}、左 {left}、右 {right}
+	Normal	標準
+	Narrow	狭い
+	{name} — set your name in File › Options	{name} — 名前は [ファイル] › [オプション] で設定します
+	{cols}×{rows} Table	{cols}×{rows} の表
+	{count} results	{count} 件の結果
+	{contributors} contributors · {commits} commits	貢献者 {contributors} 人 · コミット {commits} 件
+	English (United Kingdom)	英語 (イギリス)
+	English	英語
+	German (Germany)	ドイツ語 (ドイツ)
+	German (Austria)	ドイツ語 (オーストリア)
+	German (Switzerland)	ドイツ語 (スイス)
+	German	ドイツ語
+	French (France)	フランス語 (フランス)
+	French	フランス語
+	Spanish (Spain)	スペイン語 (スペイン)
+	Spanish	スペイン語
+	Italian (Italy)	イタリア語 (イタリア)
+	Italian	イタリア語
+	Dutch (Netherlands)	オランダ語 (オランダ)
+	Dutch	オランダ語
+	Polish (Poland)	ポーランド語 (ポーランド)
+	Portuguese (Brazil)	ポルトガル語 (ブラジル)
+	Portuguese	ポルトガル語
+	Japanese	日本語
+	Chinese (Simplified)	中国語 (簡体字)
+	Chinese (Traditional)	中国語 (繁体字)
+	Chinese	中国語
+	Swedish	スウェーデン語
+	Envelope #10 paper	封筒 #10
+	Envelope DL paper	封筒 DL
+	Document1	文書1

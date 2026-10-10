@@ -109,16 +109,37 @@ fn with_sect(s: &mut Session, f: impl Fn(&mut SectionProps)) -> CmdResult {
     Ok(serde_json::to_value(sect(s)).unwrap_or(Value::Null))
 }
 
+/// The margin presets in menu order: (id, label).
+pub const MARGIN_PRESETS: [(&str, &str); 6] = [
+    ("normal", "Normal"),
+    ("narrow", "Narrow"),
+    ("moderate", "Moderate"),
+    ("wide", "Wide"),
+    ("mirrored", "Mirrored"),
+    ("office2003", "Office 2003 Default"),
+];
+
+/// A margin preset's (top, bottom, left, right) in points. `normal` is the region's margin for
+/// new documents: 1" in the US, 2.5 cm on A4.
+pub fn margin_preset(name: &str, locale: &str) -> Option<(f32, f32, f32, f32)> {
+    Some(match name {
+        "normal" => {
+            let m = crate::region::margin(locale);
+            (m, m, m, m)
+        }
+        "narrow" => (36.0, 36.0, 36.0, 36.0),
+        "moderate" => (72.0, 72.0, 54.0, 54.0),
+        "wide" => (72.0, 72.0, 144.0, 144.0),
+        "mirrored" => (72.0, 72.0, 90.0, 72.0),
+        "office2003" => (72.0, 72.0, 90.0, 90.0),
+        _ => return None,
+    })
+}
+
 fn margins(s: &mut Session, v: &Value) -> CmdResult {
     let preset = p::str(v, "preset");
     let (t, b, l, r) = match preset {
-        Some("normal") => (72.0, 72.0, 72.0, 72.0),
-        Some("narrow") => (36.0, 36.0, 36.0, 36.0),
-        Some("moderate") => (72.0, 72.0, 54.0, 54.0),
-        Some("wide") => (72.0, 72.0, 144.0, 144.0),
-        Some("mirrored") => (72.0, 72.0, 90.0, 72.0),
-        Some("office2003") => (72.0, 72.0, 90.0, 90.0),
-        Some(x) => return Err(CmdError::Params(format!("unknown preset `{x}`"))),
+        Some(x) => margin_preset(x, &s.locale).ok_or_else(|| CmdError::Params(format!("unknown preset `{x}`")))?,
         None => {
             let c = sect(s);
             (

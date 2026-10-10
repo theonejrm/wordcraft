@@ -83,7 +83,7 @@ fn nav(app: &mut WordApp, ui: &mut Ui) {
         }
         "results" => {
             let results = app.session.find.results.clone();
-            ui.label(egui::RichText::new(format!("{} results", results.len())).small().weak());
+            ui.label(egui::RichText::new(crate::i18n::fmt(tl!("{count} results"), &[("count", &crate::measure::Measure::of(app).count(results.len() as u64))])).small().weak());
             for (a, b) in results.iter().take(500) {
                 let Some(p) = app.session.doc.para_at(a) else { continue };
                 let from = p.clamp(a.off.saturating_sub(30));
