@@ -19,6 +19,9 @@ fn system_locales_map_to_languages() {
     assert_eq!(lang_from_tag("zh-Hant"), Some(lang("zh-hant")));
     assert_eq!(lang_from_tag("ja-JP"), Some(lang("ja")));
     assert_eq!(lang_from_tag("ja_JP.eucJP@euro"), Some(lang("ja")));
+    assert_eq!(lang_from_tag("de_DE.UTF-8"), Some(lang("de")));
+    assert_eq!(lang_from_tag("de-AT"), Some(lang("de")));
+    assert_eq!(lang_from_tag("de_CH"), Some(lang("de")));
     assert_eq!(lang_from_tag("en-GB"), Some(Lang::EN));
     assert_eq!(lang_from_tag("C"), Some(Lang::EN));
     assert_eq!(lang_from_tag("POSIX"), Some(Lang::EN));
@@ -32,7 +35,8 @@ fn the_first_supported_preferred_language_wins() {
     // Windows and macOS list several preferred languages in order.
     assert_eq!(first_supported(["fr-FR", "zh-Hant-TW", "en-US"]), Some(lang("zh-hant")));
     assert_eq!(first_supported(["en-US", "ja-JP"]), Some(Lang::EN));
-    assert_eq!(first_supported(["fr-FR", "de-DE"]), None);
+    assert_eq!(first_supported(["fr-FR", "de-DE"]), Some(lang("de")));
+    assert_eq!(first_supported(["fr-FR", "it-IT"]), None);
     assert_eq!(first_supported([]), None);
 }
 
@@ -56,6 +60,7 @@ fn lookups_fall_back_to_english() {
     assert_eq!(tr(zh, "File"), "文件");
     assert_eq!(tr(lang("zh-hant"), "File"), "檔案");
     assert_eq!(tr(lang("ja"), "File"), "ファイル");
+    assert_eq!(tr(lang("de"), "File"), "Datei");
     assert_eq!(tr(zh, "no such label"), "no such label");
     assert_eq!(tr(Lang::EN, "File"), "File");
     assert!(has(zh, "Save") && !has(Lang::EN, "Save"));
@@ -152,4 +157,25 @@ fn the_language_setting_is_a_ui_command_and_persists() {
     assert_eq!(app.ui.language, AUTO);
     // Reading without a value reports the current setting.
     assert_eq!(app.run("ui.language", serde_json::json!({})).unwrap()["language"], AUTO);
+}
+
+/// German shows every built-in paragraph and character style under its German name; documents
+/// keep the standard names, and a user's own style shows as written.
+#[test]
+fn built_in_style_names_are_translated_for_display() {
+    let de = lang("de");
+    let sheet = wordcraft_doc::StyleSheet::builtin();
+    let missing: Vec<&str> = sheet
+        .styles
+        .iter()
+        .filter(|s| s.kind != wordcraft_doc::StyleKind::Table || s.name == "Table Grid" || s.name == "Normal Table")
+        .map(|s| s.name.as_str())
+        .filter(|n| !has(de, &format!("{n} style")))
+        .collect();
+    assert!(missing.is_empty(), "untranslated built-in styles: {missing:?}");
+    set_current(de);
+    assert_eq!(style_name("Heading 1"), "Überschrift 1");
+    assert_eq!(style_name("My Own Style"), "My Own Style");
+    set_current(Lang::EN);
+    assert_eq!(style_name("Heading 1"), "Heading 1");
 }

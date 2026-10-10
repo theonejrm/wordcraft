@@ -20,8 +20,25 @@ pub fn shortcut_text(app: &WordApp, id: &str) -> String {
     if cfg!(target_os = "macos") {
         sc.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥").replace("Ctrl+", "⌃")
     } else {
-        sc.replace("Mod+", "Ctrl+")
+        key_names(sc)
     }
+}
+
+/// `Mod+Shift+Home` with the keys as labelled on this language's keyboards (`Strg+Umschalt+Pos1`
+/// in German). Key names have their own catalog entries (`Home key`), apart from the
+/// identically spelled labels (`Home` the tab); a key without one keeps its English name.
+fn key_names(sc: &str) -> String {
+    let (mods, key) = match sc.strip_suffix("++") {
+        Some(mods) => (mods, "+"),
+        None => sc.rsplit_once('+').unwrap_or(("", sc)),
+    };
+    let name = |k: &str| {
+        let entry = format!("{k} key");
+        if crate::i18n::has(crate::i18n::current(), &entry) { tl!(&entry).to_string() } else { k.to_string() }
+    };
+    let mut parts: Vec<String> = mods.split('+').filter(|m| !m.is_empty()).map(|m| name(if m == "Mod" { "Ctrl" } else { m })).collect();
+    parts.push(name(key));
+    parts.join("+")
 }
 
 /// `label` is already in the interface language.
@@ -337,4 +354,23 @@ pub fn combo(
         });
     });
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::key_names;
+    use crate::i18n::{Lang, set_current};
+
+    #[test]
+    fn shortcuts_use_the_keyboard_names_of_the_language() {
+        assert_eq!(key_names("Mod+Shift+Home"), "Ctrl+Shift+Home");
+        assert_eq!(key_names("F7"), "F7");
+        assert_eq!(key_names("Mod++"), "Ctrl++");
+        set_current(Lang::from_code("de").unwrap());
+        assert_eq!(key_names("Mod+Shift+Home"), "Strg+Umschalt+Pos1");
+        assert_eq!(key_names("Alt+Delete"), "Alt+Entf");
+        assert_eq!(key_names("Mod+Alt+PageDown"), "Strg+Alt+Bild ab");
+        assert_eq!(key_names("Mod+B"), "Strg+B");
+        set_current(Lang::EN);
+    }
 }

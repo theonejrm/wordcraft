@@ -140,7 +140,7 @@ fn template_tile(ui: &mut Ui, app: &mut WordApp, label: &str, template: &str) {
 }
 
 fn new_page(app: &mut WordApp, ui: &mut Ui) {
-    let hour = wordcraft_engine::cmd::now_iso().get(11..13).and_then(|h| h.parse::<u32>().ok()).unwrap_or(9);
+    let hour = wordcraft_engine::dates::now_local().hour;
     heading(
         ui,
         if hour < 12 {

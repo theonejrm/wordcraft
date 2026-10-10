@@ -120,7 +120,11 @@ pub struct WordApp {
 }
 
 impl WordApp {
-    pub fn new(session: Session, services: Services) -> Self {
+    pub fn new(mut session: Session, services: Services) -> Self {
+        // Tests keep the reproducible `en-US` whatever the machine's region is.
+        if !cfg!(test) {
+            session.use_system_locale();
+        }
         WordApp {
             session,
             ui: UiState::default(),

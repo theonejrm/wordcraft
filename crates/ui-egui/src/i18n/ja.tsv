@@ -771,3 +771,38 @@
 	📂  Browse…	📂  参照…
 	{words} words	{words} 語
 	{selected} of {words} words	{selected}/{words} 語
+
+# Start page, document properties, context menu, Find, About.
+	Good morning	おはようございます
+	Good afternoon	こんにちは
+	Good evening	こんばんは
+	Title	タイトル
+	Subject	件名
+	Keywords	キーワード
+	Category	分類
+	Font…	フォント…
+	Paragraph…	段落…
+	Link…	リンク…
+	Insert Rows Above	上に行を挿入
+	Insert Rows Below	下に行を挿入
+	Insert Columns to the Left	左に列を挿入
+	Insert Columns to the Right	右に列を挿入
+	Contributors	貢献者
+	Models	モデル
+	All done. We made {count} replacements.	完了しました。{count} 件を置換しました。
+	Match {index} of {count}	{count} 件中 {index} 件目
+	Style set: {name}	スタイル セット: {name}
+	Change to Level {level}	レベル {level} に変更
+	Level {level}	レベル {level}
+	Username	ユーザー名
+	Display name	表示名
+	Real name	本名
+	Name	名前
+	Commits	コミット
+	First	最初
+	Last	最後
+	Company	会社
+	Model	モデル
+	Version	バージョン
+	% of all commits	全コミット中の %
+	Lines +/−	行 +/−

@@ -62,7 +62,7 @@ pub fn specs() -> Vec<CommandSpec> {
             s.doc.last_section.footers = Default::default();
             sel_result(s)
         }),
-        CommandSpec::new("insert.dateTime", "Date & Time", "Insert › Text", date_time).params(r#"{"format"?: "M/d/yyyy", "update"?: bool}"#),
+        CommandSpec::new("insert.dateTime", "Date & Time", "Insert › Text", date_time).params(r#"{"format"?: "short"|"long"|"time"|"dd.MM.yyyy"…, "lang"?: "de-DE", "update"?: bool}"#),
         CommandSpec::new("insert.symbol", "Symbol", "Insert › Symbols", |s, v| {
             let c = p::req_str(v, "char")?;
             type_text(s, c)?;
@@ -428,8 +428,9 @@ fn page_number(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn date_time(s: &mut Session, v: &Value) -> CmdResult {
-    let fmt = p::str(v, "format").unwrap_or("M/d/yyyy");
-    let text = format_date(fmt);
+    let locale = p::str(v, "lang").unwrap_or(&s.locale).to_string();
+    let fmt = crate::dates::resolve_picture(p::str(v, "format").unwrap_or("short"), &locale).to_string();
+    let text = format_date(&fmt, &locale);
     if p::bool(v, "update").unwrap_or(false) {
         let props = s.typing_props();
         let at = delete_selection(s)?;
@@ -441,68 +442,10 @@ fn date_time(s: &mut Session, v: &Value) -> CmdResult {
     sel_result(s)
 }
 
-/// Format today's date with a Word picture (`M/d/yyyy`, `MMMM d, yyyy`, `yyyy-MM-dd`, `dddd`…).
-pub fn format_date(fmt: &str) -> String {
-    let iso = super::now_iso();
-    let y: i64 = iso.get(0..4).and_then(|x| x.parse().ok()).unwrap_or(2026);
-    let m: usize = iso.get(5..7).and_then(|x| x.parse().ok()).unwrap_or(1);
-    let d: u32 = iso.get(8..10).and_then(|x| x.parse().ok()).unwrap_or(1);
-    let hh: u32 = iso.get(11..13).and_then(|x| x.parse().ok()).unwrap_or(0);
-    let mm: u32 = iso.get(14..16).and_then(|x| x.parse().ok()).unwrap_or(0);
-    const MONTHS: [&str; 12] =
-        ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const DAYS: [&str; 7] = ["Thursday", "Friday", "Saturday", "Sunday", "Monday", "Tuesday", "Wednesday"];
-    let days_since = {
-        // Days since epoch for weekday.
-        let secs = {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                0u64
-            }
-        };
-        (secs / 86_400) as usize
-    };
-    let month = MONTHS.get(m.saturating_sub(1)).copied().unwrap_or("January");
-    let day = DAYS.get(days_since % 7).copied().unwrap_or("Monday");
-    let mut out = String::new();
-    let chars: Vec<char> = fmt.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars.get(i).copied().unwrap_or(' ');
-        let mut n = 1;
-        while chars.get(i + n) == Some(&c) {
-            n += 1;
-        }
-        match (c, n) {
-            ('y', 4..) => out.push_str(&format!("{y:04}")),
-            ('y', _) => out.push_str(&format!("{:02}", y % 100)),
-            ('M', 4..) => out.push_str(month),
-            ('M', 3) => out.push_str(month.get(..3).unwrap_or(month)),
-            ('M', 2) => out.push_str(&format!("{m:02}")),
-            ('M', 1) => out.push_str(&m.to_string()),
-            ('d', 4..) => out.push_str(day),
-            ('d', 3) => out.push_str(day.get(..3).unwrap_or(day)),
-            ('d', 2) => out.push_str(&format!("{d:02}")),
-            ('d', 1) => out.push_str(&d.to_string()),
-            ('H', 2..) => out.push_str(&format!("{hh:02}")),
-            ('H', _) => out.push_str(&hh.to_string()),
-            ('h', _) => out.push_str(&(if hh.is_multiple_of(12) { 12 } else { hh % 12 }).to_string()),
-            ('m', 2..) => out.push_str(&format!("{mm:02}")),
-            ('m', _) => out.push_str(&mm.to_string()),
-            ('a' | 'A', _) => out.push_str(if hh < 12 { "AM" } else { "PM" }),
-            _ => {
-                for _ in 0..n {
-                    out.push(c);
-                }
-            }
-        }
-        i += n;
-    }
-    out
+/// Format the current local time with a Word picture (`M/d/yyyy`, `d. MMMM yyyy`, `HH:mm`,
+/// `dddd`…) in the language of `locale` (`de-DE`, `en-US`).
+pub fn format_date(fmt: &str, locale: &str) -> String {
+    crate::dates::format(fmt, locale, &crate::dates::now_local())
 }
 
 fn field(s: &mut Session, v: &Value) -> CmdResult {
@@ -541,7 +484,7 @@ fn cover_page(s: &mut Session, v: &Value) -> CmdResult {
     }
     blocks
         .push(Block::Para(Paragraph::with_text(&author, CharProps { bold: Some(true), color: Some(TextColor::Rgb(accent)), ..Default::default() })));
-    let mut date = Paragraph::with_text(&format_date("MMMM d, yyyy"), CharProps::default());
+    let mut date = Paragraph::with_text(&format_date(crate::dates::long_date_picture(&s.locale), &s.locale), CharProps::default());
     date.insert_text(date.len(), "\u{000C}", &CharProps::default())?;
     blocks.push(Block::Para(date));
     let frag = wordcraft_doc::edit::Fragment { blocks };
@@ -566,8 +509,8 @@ mod tests {
 
     #[test]
     fn date_pictures() {
-        let d = format_date("yyyy-MM-dd");
+        let d = format_date("yyyy-MM-dd", "de-DE");
         assert_eq!(d.len(), 10);
-        assert!(format_date("MMMM d, yyyy").contains(", "));
+        assert!(format_date("MMMM d, yyyy", "en-US").contains(", "));
     }
 }

@@ -351,3 +351,24 @@ fn caret_navigation() {
     run(&mut s, "caret.left", json!({}));
     assert_eq!(s.sel.focus.off, 10);
 }
+
+#[test]
+fn dates_follow_the_session_region() {
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    assert_eq!(s.locale, "en-US", "sessions start reproducible; the apps apply the system region");
+    s.locale = "de-DE".into();
+    run(&mut s, "insert.dateTime", json!({}));
+    let de = text(&s);
+    assert!(de.len() == 10 && de.get(2..3) == Some(".") && de.get(5..6) == Some("."), "{de:?}");
+    // An explicit language wins; `update` keeps the picture in a DATE field.
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    s.locale = "de-DE".into();
+    run(&mut s, "insert.dateTime", json!({"format": "long", "lang": "en-US", "update": true}));
+    let field = s.doc.para(wordcraft_doc::StoryRef::Body, &s.sel.focus.path).and_then(|p| {
+        p.objects.iter().find_map(|o| match o {
+            wordcraft_doc::para::InlineObject::Field { instr, .. } => Some(instr.clone()),
+            _ => None,
+        })
+    });
+    assert_eq!(field.as_deref(), Some("DATE \\@ \"MMMM d, yyyy\""));
+}

@@ -26,6 +26,7 @@ USAGE:
 fn open(path: &str) -> Result<Session, String> {
     let doc = wordcraft_engine::io::open_path(std::path::Path::new(path))?;
     let mut s = Session::new(doc);
+    s.use_system_locale();
     s.path = Some(path.into());
     Ok(s)
 }
@@ -80,10 +81,15 @@ fn run(args: &[String]) -> Result<(), String> {
                 (Some(f), _) => open(&f)?,
                 (None, Some(t)) => {
                     let mut s = Session::new(wordcraft_doc::Document::new());
+                    s.use_system_locale();
                     s.run("file.new", &json!({"template": t})).map_err(|e| e.to_string())?;
                     s
                 }
-                _ => Session::new(wordcraft_doc::Document::new()),
+                _ => {
+                    let mut s = Session::new(wordcraft_doc::Document::new());
+                    s.use_system_locale();
+                    s
+                }
             };
             let mut i = 0;
             while i < rest.len() {

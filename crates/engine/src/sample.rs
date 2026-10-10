@@ -140,7 +140,7 @@ pub fn letter() -> Document {
         styled("Your Name", "Title"),
         para("123 Your Street · City, ST 00000 · you@example.com"),
         para(""),
-        para(&crate::cmd::insert::format_date("MMMM d, yyyy")),
+        para(&crate::cmd::insert::format_date("MMMM d, yyyy", "en-US")),
         para(""),
         para("Recipient Name"),
         para("Title, Company"),

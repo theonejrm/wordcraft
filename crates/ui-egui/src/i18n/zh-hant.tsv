@@ -772,3 +772,38 @@
 	📂  Browse…	📂  瀏覽…
 	{words} words	{words} 個字
 	{selected} of {words} words	{selected}/{words} 個字
+
+# Start page, document properties, context menu, Find, About.
+	Good morning	早安
+	Good afternoon	午安
+	Good evening	晚安
+	Title	標題
+	Subject	主旨
+	Keywords	關鍵字
+	Category	類別
+	Font…	字型…
+	Paragraph…	段落…
+	Link…	連結…
+	Insert Rows Above	在上方插入列
+	Insert Rows Below	在下方插入列
+	Insert Columns to the Left	在左側插入欄
+	Insert Columns to the Right	在右側插入欄
+	Contributors	貢獻者
+	Models	模型
+	All done. We made {count} replacements.	全部完成。共取代 {count} 處。
+	Match {index} of {count}	第 {index} 個，共 {count} 個
+	Style set: {name}	樣式集：{name}
+	Change to Level {level}	變更為第 {level} 階
+	Level {level}	第 {level} 階
+	Username	使用者名稱
+	Display name	顯示名稱
+	Real name	真實姓名
+	Name	名稱
+	Commits	提交
+	First	首次
+	Last	最近
+	Company	公司
+	Model	模型
+	Version	版本
+	% of all commits	佔全部提交的 %
+	Lines +/−	行 +/−

@@ -169,7 +169,7 @@ fn snippet_blocks(
 pub fn style_gallery(app: &mut WordApp, ui: &mut Ui, state: &Value) {
     let t = Tokens::get(ui.ctx());
     let current = state.get("style").and_then(Value::as_str).unwrap_or("Normal").to_string();
-    let styles: Vec<(String, String)> = app.session.doc.styles.gallery().iter().map(|s| (s.id.clone(), s.name.clone())).collect();
+    let styles: Vec<(String, String)> = app.session.doc.styles.gallery().iter().map(|s| (s.id.clone(), crate::i18n::style_name(&s.name))).collect();
     let rev = app.session.rev();
     let skey = app.previews.styles_key(&app.session.doc, rev);
     let ppp = ui.ctx().pixels_per_point();
@@ -262,7 +262,7 @@ pub fn style_set_gallery(app: &mut WordApp, ui: &mut Ui) {
             let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2((ir.width() / sz.x).min(1.0), (ir.height() / sz.y).min(1.0)));
             ui.painter().image(h.id(), ir, uv, egui::Color32::WHITE);
         }
-        if resp.on_hover_text(format!("Style set: {name}")).clicked() {
+        if resp.on_hover_text(crate::i18n::fmt(tl!("Style set: {name}"), &[("name", name)])).clicked() {
             let _ = app.run("design.styleSet", json!({"name": name}));
         }
     }

@@ -279,12 +279,10 @@ pub fn update_fields(s: &mut Session) -> Result<(), CmdError> {
             let name = wordcraft_layout::fields::field_name(instr);
             match name.as_str() {
                 "DATE" | "TIME" | "CREATEDATE" | "SAVEDATE" | "PRINTDATE" => {
-                    let pic = instr
-                        .split("\\@")
-                        .nth(1)
-                        .map(|x| x.trim().trim_matches('"').to_string())
-                        .unwrap_or_else(|| if name == "TIME" { "h:mm am/pm".into() } else { "M/d/yyyy".into() });
-                    updates.push((k, super::insert::format_date(&pic)));
+                    let pic = instr.split("\\@").nth(1).map(|x| x.trim().trim_matches('"').to_string()).unwrap_or_else(|| {
+                        if name == "TIME" { crate::dates::time_picture(&s.locale) } else { crate::dates::short_date_picture(&s.locale) }.to_string()
+                    });
+                    updates.push((k, super::insert::format_date(&pic, &s.locale)));
                 }
                 "SEQ" => {
                     let id = instr.split_whitespace().nth(1).unwrap_or("").to_string();

@@ -289,7 +289,13 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
                     mi(ui, app, "I. A. 1. a.", "para.multilevel", json!({"kind": "outline"}));
                     ui.separator();
                     for lv in 0..5u64 {
-                        mi(ui, app, &format!("Change to Level {}", lv + 1), "para.listLevel", json!({"level": lv}));
+                        mi(
+                            ui,
+                            app,
+                            &crate::i18n::fmt(tl!("Change to Level {level}"), &[("level", &(lv + 1).to_string())]),
+                            "para.listLevel",
+                            json!({"level": lv}),
+                        );
                     }
                 });
                 ui.add_space(4.0);
@@ -696,7 +702,7 @@ fn references(app: &mut WordApp, ui: &mut Ui) {
             menu_button(ui, app, "addText", Some("Add Text"), "Add Text", false, |ui, app| {
                 mi(ui, app, "Do Not Show in TOC", "references.addText", json!({"level": 0}));
                 for l in 1..=3u64 {
-                    mi(ui, app, &format!("Level {l}"), "references.addText", json!({"level": l}));
+                    mi(ui, app, &crate::i18n::fmt(tl!("Level {level}"), &[("level", &l.to_string())]), "references.addText", json!({"level": l}));
                 }
             });
             small(ui, app, "updateTable", Some("Update Table"), "Update Table", "references.updateToc", json!({}), false);

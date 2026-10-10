@@ -25,7 +25,12 @@ pub struct Headless {
 
 impl Default for Headless {
     fn default() -> Self {
-        Headless { session: Session::new(wordcraft_doc::Document::new()) }
+        let mut session = Session::new(wordcraft_doc::Document::new());
+        // Tests keep the reproducible `en-US` whatever the machine's region is.
+        if !cfg!(test) {
+            session.use_system_locale();
+        }
+        Headless { session }
     }
 }
 

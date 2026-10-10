@@ -121,6 +121,9 @@ pub struct Session {
     pub registry: Arc<Registry>,
     /// Author name for comments and tracked changes.
     pub author: String,
+    /// Region for dates and times typed into the document (`de-DE`, `en-US`); see [`crate::dates`].
+    /// The apps set it from the system.
+    pub locale: String,
     /// Format painter: copied formatting waiting to be applied (and whether it stays on).
     pub painter: Option<(CharProps, wordcraft_doc::props::ParaProps, bool)>,
     /// Last message for the status bar / agents.
@@ -160,6 +163,14 @@ pub struct Session {
 const MAX_UNDO: usize = 500;
 
 impl Session {
+    /// Write dates and times the way the system's region does (see [`crate::dates::system_locale`]).
+    /// Sessions start as `en-US` so tests and scripts are reproducible; the apps call this.
+    pub fn use_system_locale(&mut self) {
+        if let Some(l) = crate::dates::system_locale() {
+            self.locale = l;
+        }
+    }
+
     pub fn new(doc: Document) -> Self {
         let start = doc.start_of(StoryRef::Body);
         Session {
@@ -176,6 +187,7 @@ impl Session {
             page_hint: 0,
             registry: Arc::new(crate::cmd::registry()),
             author: "WordCraft User".into(),
+            locale: "en-US".into(),
             painter: None,
             status: String::new(),
             history: Vec::new(),

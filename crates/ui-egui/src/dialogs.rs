@@ -460,7 +460,9 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 if *replace_mode {
                     if ui.button(tl!("Replace All")).clicked() {
                         match app.run("edit.replaceAll", opts.clone()) {
-                            Ok(r) => *message = format!("All done. We made {} replacements.", r["replaced"]),
+                            Ok(r) => {
+                                *message = crate::i18n::fmt(tl!("All done. We made {count} replacements."), &[("count", &r["replaced"].to_string())])
+                            }
                             Err(e) => *message = e,
                         }
                     }
@@ -471,7 +473,10 @@ fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
                 if ui.button(tl!("Find Next")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     let _ = app.session.run("edit.find", &opts);
                     match app.run("edit.findNext", json!({})) {
-                        Ok(r) => *message = format!("Match {} of {}", r["index"].as_u64().unwrap_or(0) + 1, r["count"]),
+                        Ok(r) => {
+                            let index = (r["index"].as_u64().unwrap_or(0) + 1).to_string();
+                            *message = crate::i18n::fmt(tl!("Match {index} of {count}"), &[("index", &index), ("count", &r["count"].to_string())]);
+                        }
                         Err(e) => *message = e,
                     }
                 }

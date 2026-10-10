@@ -47,13 +47,14 @@ pub struct LangInfo {
 }
 
 /// The registry. English first: it is the fallback and the source language.
-pub static LANGUAGES: [LangInfo; 4] = [
+pub static LANGUAGES: [LangInfo; 5] = [
     LangInfo { code: "en", name: "English", source: "", prefer_hans: false, catalog: OnceLock::new() },
     // Simplified Chinese; `zh`, `zh-CN`, `zh-SG` and `zh-Hans-*` resolve here (see `candidates`).
     LangInfo { code: "zh-hans", name: "简体中文", source: include_str!("zh-hans.tsv"), prefer_hans: true, catalog: OnceLock::new() },
     // Traditional Chinese (Taiwan vocabulary); `zh-TW`, `zh-HK`, `zh-MO` and `zh-Hant-*` resolve here.
     LangInfo { code: "zh-hant", name: "繁體中文", source: include_str!("zh-hant.tsv"), prefer_hans: true, catalog: OnceLock::new() },
     LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), prefer_hans: false, catalog: OnceLock::new() },
+    LangInfo { code: "de", name: "Deutsch", source: include_str!("de.tsv"), prefer_hans: false, catalog: OnceLock::new() },
 ];
 
 impl LangInfo {
@@ -217,6 +218,14 @@ pub fn tr(lang: Lang, s: &str) -> &str {
 /// A ribbon location (`Home › Font`) in the current language, segment by segment.
 pub fn location(loc: &str) -> String {
     loc.split(" › ").map(t).collect::<Vec<_>>().join(" › ")
+}
+
+/// A style's display name: the built-in styles' standard names (`Heading 1`) shown in the
+/// interface language (`Überschrift 1`). Documents keep the standard names, and a name without a
+/// `… style` entry (a user's own style) shows as written.
+pub fn style_name(name: &str) -> String {
+    let entry = format!("{name} style");
+    if has(current(), &entry) { t(&entry).to_string() } else { name.to_string() }
 }
 
 /// A label with an action after a fixed English prefix, e.g. `Undo Typing`: both parts translated
