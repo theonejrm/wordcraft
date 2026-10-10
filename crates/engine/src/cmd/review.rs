@@ -86,7 +86,68 @@ pub fn specs() -> Vec<CommandSpec> {
         })
         .pure(),
         CommandSpec::new("review.thesaurus", "Thesaurus", "Review › Proofing", thesaurus).key("Shift+F7").pure(),
+        CommandSpec::new("review.dictionaries", "Dictionaries", "File › Options › Proofing", dictionaries).params(r#"{"rescan"?: bool}"#).pure(),
+        CommandSpec::new("review.languageTool", "LanguageTool Server", "File › Options › Proofing", language_tool)
+            .params(r#"{"enabled"?: bool, "url"?: "http://localhost:8081"}"#)
+            .pure(),
     ]
+}
+
+/// The spelling dictionaries and hyphenation patterns found for languages beyond the built-in
+/// English, and where WordCraft looks for them.
+fn dictionaries(_: &mut Session, v: &Value) -> CmdResult {
+    if p::bool(v, "rescan") == Some(true) {
+        wordcraft_proof::hunspell::rescan();
+    }
+    let spelling: Vec<Value> =
+        wordcraft_proof::hunspell::available().into_iter().map(|f| json!({"name": f.name, "path": f.dic.display().to_string()})).collect();
+    let hyphenation: Vec<Value> =
+        wordcraft_proof::libhyphen::available().into_iter().map(|(n, p)| json!({"name": n, "path": p.display().to_string()})).collect();
+    Ok(json!({
+        "spelling": spelling,
+        "hyphenation": hyphenation,
+        "userDir": wordcraft_proof::files::user_dir().map(|d| d.display().to_string()),
+        "searched": wordcraft_proof::files::search_dirs().iter().map(|d| d.display().to_string()).collect::<Vec<_>>(),
+    }))
+}
+
+/// Grammar and style checking by a LanguageTool server the user runs: on with a URL (default
+/// `http://localhost:8081`), off with `enabled: false`. Reports whether the server answers.
+fn language_tool(_: &mut Session, v: &Value) -> CmdResult {
+    use wordcraft_proof::languagetool as lt;
+    let enabled = p::bool(v, "enabled");
+    let url = p::str(v, "url").map(str::to_string);
+    if let Some(u) = &url {
+        lt::normalize_url(u).map_err(CmdError::Params)?;
+    }
+    match enabled {
+        Some(false) => lt::configure(None).map_err(CmdError::Failed)?,
+        Some(true) => {
+            let u = url.clone().or_else(lt::url).unwrap_or_else(|| "http://localhost:8081".into());
+            lt::configure(Some(&u)).map_err(CmdError::Failed)?;
+        }
+        None => {
+            if let Some(u) = &url
+                && lt::url().is_some()
+            {
+                lt::configure(Some(u)).map_err(CmdError::Failed)?;
+            }
+        }
+    }
+    let current = lt::url();
+    let (status, languages) = match &current {
+        None => ("off".to_string(), Value::Null),
+        Some(u) if enabled == Some(true) || url.is_some() => match lt::ping(u) {
+            Ok(n) => ("ok".to_string(), json!(n)),
+            Err(e) => (format!("unreachable: {e}"), Value::Null),
+        },
+        Some(_) => match lt::status() {
+            lt::Status::Ok => ("ok".to_string(), Value::Null),
+            lt::Status::Failed(e) => (format!("unreachable: {e}"), Value::Null),
+            _ => ("unknown".to_string(), Value::Null),
+        },
+    };
+    Ok(json!({"enabled": current.is_some(), "url": current, "status": status, "languages": languages}))
 }
 
 fn new_comment(s: &mut Session, v: &Value) -> CmdResult {
@@ -374,12 +435,13 @@ fn word_count(s: &mut Session, _: &Value) -> CmdResult {
 fn para_issues(s: &Session, story: StoryRef, path: &wordcraft_doc::Path) -> Vec<(Pos, Pos, wordcraft_proof::Issue)> {
     let Some(p) = s.doc.para(story, path) else { return Vec::new() };
     let text = wordcraft_layout::para::proof_text(p);
-    let foreign = wordcraft_layout::para::unproofed_ranges(&s.doc.styles, p);
-    let mut v: Vec<wordcraft_proof::Issue> = wordcraft_proof::check_spelling(&text);
-    v.extend(wordcraft_proof::check_grammar(&text));
+    let spans = wordcraft_layout::para::lang_spans(&s.doc.styles, p);
+    let lang = |off: usize| wordcraft_layout::para::lang_at(&spans, off);
+    // Commands wait for dictionaries and the grammar server rather than skipping text.
+    let mut v: Vec<wordcraft_proof::Issue> = wordcraft_proof::check_spelling_in(&text, &lang, true);
+    v.extend(wordcraft_proof::check_grammar_in(&text, &lang, true));
     v.sort_by_key(|i| i.start);
     v.into_iter()
-        .filter(|i| !foreign.iter().any(|r| r.start < i.end && i.start < r.end))
         .filter(|i| !p.run_ranges().any(|(r, c)| r.start < i.end && i.start < r.end && (c.no_proof == Some(true) || c.link.is_some())))
         .map(|i| (Pos { story, path: path.clone(), off: i.start }, Pos { story, path: path.clone(), off: i.end }, i))
         .collect()
@@ -392,7 +454,12 @@ fn issue_at(s: &Session, at: &Pos) -> Option<(Pos, Pos, wordcraft_proof::Issue)>
 
 fn issue_json(s: &Session, a: &Pos, b: &Pos, i: &wordcraft_proof::Issue) -> Value {
     let word = s.doc.para_at(a).and_then(|p| p.text.get(a.off..b.off)).unwrap_or("").to_string();
-    let sugg = if i.kind == wordcraft_proof::IssueKind::Spelling { wordcraft_proof::suggest(&word, 6) } else { i.suggestions.clone() };
+    let sugg = if i.kind == wordcraft_proof::IssueKind::Spelling {
+        let lang = s.doc.para_at(a).and_then(|p| wordcraft_layout::para::lang_at(&wordcraft_layout::para::lang_spans(&s.doc.styles, p), a.off));
+        wordcraft_proof::suggest_in(&word, lang.as_deref(), 6)
+    } else {
+        i.suggestions.clone()
+    };
     json!({"start": pos_json(a), "end": pos_json(b), "text": word, "kind": if i.kind == wordcraft_proof::IssueKind::Spelling { "spelling" } else { "grammar" }, "message": i.message, "suggestions": sugg})
 }
 

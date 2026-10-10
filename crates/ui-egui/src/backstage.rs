@@ -283,8 +283,109 @@ fn options_page(app: &mut WordApp, ui: &mut Ui) {
         let _ = app.run("view.ruler", json!({"value": ruler}));
     }
     ui.add_space(10.0);
+    proofing_options(app, ui);
+    ui.add_space(10.0);
     ui.label(egui::RichText::new(tl!("Agents")).font(semibold(15.0)));
     ui.label(tl!("Every command is available to scripts and AI agents: run `wordcraft-cli mcp` for an MCP server, or start the app with `--control <port>` for the JSON control channel."));
+}
+
+/// File ▸ Options ▸ Proofing: the dictionaries found, where to add more, and the optional
+/// LanguageTool server for grammar and style.
+fn proofing_options(app: &mut WordApp, ui: &mut Ui) {
+    ui.label(egui::RichText::new(tl!("Proofing")).font(semibold(15.0)));
+    // The folder scan is cached for the page; "Search again" refreshes it.
+    let id = egui::Id::new("proofing_dictionaries");
+    let mut info: Option<serde_json::Value> = ui.data(|d| d.get_temp(id));
+    if info.is_none() {
+        info = app.session.run("review.dictionaries", &json!({})).ok();
+        ui.data_mut(|d| d.insert_temp(id, info.clone()));
+    }
+    let info = info.unwrap_or_default();
+    let names = |key: &str| -> Vec<String> {
+        let mut v: Vec<String> = info[key]
+            .as_array()
+            .map(|a| {
+                // English always uses the built-in tools, so English dictionaries aren't listed.
+                a.iter()
+                    .filter_map(|x| x["name"].as_str())
+                    .filter(|n| !n.starts_with("en"))
+                    .map(|n| crate::chrome::language_name(n.trim_end_matches("_frami")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        v.dedup();
+        v
+    };
+    let none = tl!("none").to_string();
+    let spelling = names("spelling");
+    let hyphenation = names("hyphenation");
+    ui.label(crate::i18n::fmt(
+        tl!("Spelling: English (built in), {dictionaries}"),
+        &[("dictionaries", &if spelling.is_empty() { none.clone() } else { spelling.join(", ") })],
+    ));
+    ui.label(crate::i18n::fmt(
+        tl!("Hyphenation: English (built in), {patterns}"),
+        &[("patterns", &if hyphenation.is_empty() { none } else { hyphenation.join(", ") })],
+    ));
+    let lang = wordcraft_engine::region::lang_tag(&app.session.locale).unwrap_or_else(|| "en-US".into());
+    if !wordcraft_engine::proof::is_english(Some(&lang)) && wordcraft_engine::proof::hunspell::locate(&lang).is_none() {
+        ui.label(
+            egui::RichText::new(crate::i18n::fmt(
+                tl!("There's no {language} dictionary yet: install your system's Hunspell dictionary package, or add the .aff and .dic files to the folder below."),
+                &[("language", &crate::chrome::language_name(&lang))],
+            ))
+            .color(Tokens::get(ui.ctx()).accent),
+        );
+    }
+    ui.horizontal(|ui| {
+        let dir = info["userDir"].as_str().unwrap_or("").to_string();
+        ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Your dictionaries folder: {folder}"), &[("folder", &dir)])).small().weak());
+        if ui.small_button(tl!("Search again")).clicked() {
+            let fresh = app.session.run("review.dictionaries", &json!({"rescan": true})).ok();
+            ui.data_mut(|d| d.insert_temp(id, fresh));
+        }
+    });
+    ui.add_space(6.0);
+    let status_id = egui::Id::new("language_tool_status");
+    // The engine's state is the truth (scripts and agents can switch it too).
+    if let Some(u) = wordcraft_engine::proof::languagetool::url() {
+        app.ui.language_tool = true;
+        app.ui.language_tool_url = u;
+    } else {
+        app.ui.language_tool = false;
+    }
+    let mut on = app.ui.language_tool;
+    let changed_on = ui.checkbox(&mut on, tl!("Check grammar and style with LanguageTool")).changed();
+    let mut url = app.ui.language_tool_url.clone();
+    let mut changed_url = false;
+    ui.horizontal(|ui| {
+        ui.label(tl!("Server:"));
+        changed_url = ui.add(egui::TextEdit::singleline(&mut url).desired_width(260.0)).lost_focus() && url != app.ui.language_tool_url;
+    });
+    if changed_on || changed_url {
+        app.ui.language_tool = on;
+        app.ui.language_tool_url = url.clone();
+        let r = app.session.run("review.languageTool", &json!({"enabled": on, "url": url}));
+        let status = match r {
+            Ok(v) => v["status"].as_str().unwrap_or("").to_string(),
+            Err(e) => format!("unreachable: {e}"),
+        };
+        ui.data_mut(|d| d.insert_temp(status_id, status));
+    }
+    if app.ui.language_tool {
+        let status: String = ui.data(|d| d.get_temp(status_id)).unwrap_or_default();
+        let t = Tokens::get(ui.ctx());
+        if status == "ok" {
+            ui.label(egui::RichText::new(tl!("Connected.")).small());
+        } else if let Some(err) = status.strip_prefix("unreachable: ") {
+            ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Not reachable: {error}"), &[("error", err)])).small().color(t.accent));
+        }
+    }
+    ui.label(
+        egui::RichText::new(tl!("LanguageTool is a separate, free program. Start its server on this computer, e.g. `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`; your text stays on this computer."))
+            .small()
+            .weak(),
+    );
 }
 
 /// File ▸ Options ▸ Measurement units: the region's (the default) or one picked by hand.

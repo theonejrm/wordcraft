@@ -849,3 +849,25 @@
 	Envelope #10 paper	封筒 #10
 	Envelope DL paper	封筒 DL
 	Document1	文書1
+
+# Proofing: dictionaries, LanguageTool, issue messages.
+	Possible spelling mistake	スペルミスの可能性があります
+	Repeated word	単語の繰り返し
+	Extra space	余分なスペース
+	Remove the space before the punctuation	句読点の前のスペースを削除してください
+	Capitalize the first word of a sentence	文頭の単語は大文字で始めてください
+	Use "an" before a vowel sound	母音の前では "an" を使います
+	Use "a" before a consonant sound	子音の前では "a" を使います
+	none	なし
+	Spelling: English (built in), {dictionaries}	スペル: 英語 (内蔵)、{dictionaries}
+	Hyphenation: English (built in), {patterns}	ハイフネーション: 英語 (内蔵)、{patterns}
+	There's no {language} dictionary yet: install your system's Hunspell dictionary package, or add the .aff and .dic files to the folder below.	{language} の辞書がまだありません。システムの Hunspell 辞書パッケージをインストールするか、.aff と .dic ファイルを下のフォルダーに置いてください。
+	Your dictionaries folder: {folder}	辞書フォルダー: {folder}
+	Search again	再検索
+	Check grammar and style with LanguageTool	LanguageTool で文法とスタイルをチェック
+	Server:	サーバー:
+	Connected.	接続しました。
+	Not reachable: {error}	接続できません: {error}
+	LanguageTool is a separate, free program. Start its server on this computer, e.g. `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`; your text stays on this computer.	LanguageTool は独立した無料のプログラムです。このコンピューターでサーバーを起動してください (例: `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`)。テキストはこのコンピューターから出ません。
+	Dictionaries	辞書
+	LanguageTool Server	LanguageTool サーバー

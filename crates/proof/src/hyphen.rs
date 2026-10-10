@@ -112,6 +112,11 @@ fn core_breaks(core: &[char]) -> (Vec<usize>, Source) {
 /// case, apostrophes (`don't`, `’s`), surrounding punctuation and compounds (each letter run is
 /// hyphenated separately). No break is ever placed next to an apostrophe or non-letter.
 pub fn word_breaks(word: &str) -> (Vec<usize>, Source) {
+    word_breaks_with(word, &core_breaks)
+}
+
+/// [`word_breaks`] with another language's break finder for each lowercase letter run.
+pub fn word_breaks_with(word: &str, core_breaks: &dyn Fn(&[char]) -> (Vec<usize>, Source)) -> (Vec<usize>, Source) {
     let chars: Vec<char> = word.chars().collect();
     let mut out = Vec::new();
     let mut src = Source::None;
@@ -146,8 +151,12 @@ pub fn word_breaks(word: &str) -> (Vec<usize>, Source) {
 /// Allowed hyphenation points in `word` as char indices (a hyphen goes before that char), with
 /// the paragraph limits applied to each letter run.
 pub fn hyphen_points(word: &str, lim: &Limits) -> Vec<usize> {
+    limit_points(word, word_breaks(word).0, lim)
+}
+
+/// Apply the paragraph limits to unrestricted break points of `word` (see [`hyphen_points`]).
+pub fn limit_points(word: &str, pts: Vec<usize>, lim: &Limits) -> Vec<usize> {
     let chars: Vec<char> = word.chars().collect();
-    let (pts, _) = word_breaks(word);
     if pts.is_empty() {
         return pts;
     }

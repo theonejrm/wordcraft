@@ -923,3 +923,25 @@
 	Envelope #10 paper	Umschlag #10
 	Envelope DL paper	Umschlag DL
 	Document1	Dokument1
+
+# Proofing: dictionaries, LanguageTool, issue messages.
+	Possible spelling mistake	Möglicher Rechtschreibfehler
+	Repeated word	Wortwiederholung
+	Extra space	Überflüssiges Leerzeichen
+	Remove the space before the punctuation	Entferne das Leerzeichen vor dem Satzzeichen
+	Capitalize the first word of a sentence	Schreibe das erste Wort eines Satzes groß
+	Use "an" before a vowel sound	Vor einem Vokallaut steht „an“
+	Use "a" before a consonant sound	Vor einem Konsonantenlaut steht „a“
+	none	keine
+	Spelling: English (built in), {dictionaries}	Rechtschreibung: Englisch (eingebaut), {dictionaries}
+	Hyphenation: English (built in), {patterns}	Silbentrennung: Englisch (eingebaut), {patterns}
+	There's no {language} dictionary yet: install your system's Hunspell dictionary package, or add the .aff and .dic files to the folder below.	Für {language} ist noch kein Wörterbuch vorhanden: Installiere das Hunspell-Wörterbuchpaket deines Systems oder lege die .aff- und .dic-Dateien in den Ordner unten.
+	Your dictionaries folder: {folder}	Dein Wörterbuchordner: {folder}
+	Search again	Erneut suchen
+	Check grammar and style with LanguageTool	Grammatik und Stil mit LanguageTool prüfen
+	Server:	Server:
+	Connected.	Verbunden.
+	Not reachable: {error}	Nicht erreichbar: {error}
+	LanguageTool is a separate, free program. Start its server on this computer, e.g. `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`; your text stays on this computer.	LanguageTool ist ein eigenständiges, freies Programm. Starte seinen Server auf diesem Rechner, z. B. mit `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`; dein Text bleibt auf diesem Rechner.
+	Dictionaries	Wörterbücher
+	LanguageTool Server	LanguageTool-Server

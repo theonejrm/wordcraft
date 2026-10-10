@@ -470,7 +470,7 @@ pub fn autocorrect(s: &mut Session) -> Result<(), CmdError> {
     }
     let user = s.autocorrect_user.iter().find(|(a, _)| a == word).map(|(_, b)| b.clone());
     // The built-in list fixes English typos; in other languages its "typos" can be words.
-    let english = wordcraft_layout::para::proofed_language(s.typing_lang().as_deref());
+    let english = wordcraft_proof::is_english(s.typing_lang().as_deref());
     let builtin = AUTOCORRECT
         .iter()
         .filter(|_| english)

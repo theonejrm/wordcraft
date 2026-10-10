@@ -136,7 +136,8 @@ pub struct Session {
     join_next: bool,
     rev: u64,
     cache: LayoutCache,
-    layout: Option<(u64, f32, ViewMode, Arc<DocLayout>, bool)>,
+    /// (rev, web width, view, layout, proofing, proofing generation and grammar answers).
+    layout: Option<(u64, f32, ViewMode, Arc<DocLayout>, bool, (u64, u64))>,
     /// Picture edits: edited media key → original media key (Reset Picture).
     pub originals: std::collections::HashMap<String, String>,
     /// Last mutating command (Repeat).
@@ -168,6 +169,13 @@ impl Session {
     pub fn use_system_locale(&mut self) {
         if let Some(l) = crate::dates::system_locale() {
             self.locale = l;
+        }
+        // Start loading the region's dictionary and hyphenation patterns in the background.
+        if let Some(tag) = crate::region::lang_tag(&self.locale)
+            && !wordcraft_proof::is_english(Some(&tag))
+        {
+            let _ = wordcraft_proof::hunspell::speller(&tag, false);
+            let _ = wordcraft_proof::libhyphen::hyphenator(&tag, false);
         }
         // The untouched blank document a session starts with becomes the region's (A4 and
         // German for de-DE); opened files and the sample are never changed.
@@ -229,21 +237,47 @@ impl Session {
     /// The current layout (recomputed when the document or view changed).
     pub fn layout(&mut self) -> Arc<DocLayout> {
         let ww = self.view.web_width;
-        if let Some((r, w, m, l, pf)) = &self.layout
+        // Dictionaries and grammar answers arriving in the background change marks without
+        // changing the text.
+        let proof = (wordcraft_proof::generation(), wordcraft_proof::languagetool::answers());
+        if let Some((r, w, m, l, pf, g)) = &self.layout
             && *r == self.rev
             && (*w == ww || self.view.mode == ViewMode::Print)
             && *m == self.view.mode
             && *pf == self.view.proofing
+            && *g == proof
         {
             return l.clone();
         }
         let opts = LayoutOptions { view: self.view.mode, web_width: ww, show_hidden: self.view.marks, proofing: self.view.proofing };
         let l = Arc::new(wordcraft_layout::layout(&self.doc, &mut self.cache, &opts));
-        self.layout = Some((self.rev, ww, self.view.mode, l.clone(), self.view.proofing));
+        self.layout = Some((self.rev, ww, self.view.mode, l.clone(), self.view.proofing, proof));
         l
     }
     /// A layout for output (PDF, images, print): no proofing marks, print view.
     pub fn export_layout(&self) -> Arc<DocLayout> {
+        // Output must not depend on whether hyphenation patterns finished loading in the
+        // background: wait for the languages this document hyphenates.
+        if self.doc.settings.auto_hyphenation {
+            let mut langs: Vec<String> = Vec::new();
+            let stories = std::iter::once(StoryRef::Body).chain(self.doc.parts.keys().map(|k| StoryRef::Part(*k)));
+            for story in stories {
+                for path in self.doc.para_paths(story) {
+                    let Some(p) = self.doc.para(story, &path) else { continue };
+                    for (_, l) in wordcraft_layout::para::lang_spans(&self.doc.styles, p) {
+                        if let Some(l) = l
+                            && !langs.contains(&l)
+                            && langs.len() < 16
+                        {
+                            langs.push(l);
+                        }
+                    }
+                }
+            }
+            for l in langs.iter().filter(|l| !wordcraft_proof::is_english(Some(l))) {
+                let _ = wordcraft_proof::libhyphen::hyphenator(l, true);
+            }
+        }
         let opts = LayoutOptions { view: ViewMode::Print, web_width: 0.0, show_hidden: false, proofing: false };
         Arc::new(wordcraft_layout::layout(&self.doc, &mut LayoutCache::new(), &opts))
     }

@@ -1008,8 +1008,8 @@ fn hyphen_glyph(pl: &ParaLayout, style: u16, cache: &mut Vec<(u16, u32, f32)>) -
 /// pattern hyphenation points of each word when automatic hyphenation is on.
 fn hyphenation_points(p: &Paragraph, pl: &ParaLayout, auto: bool, styles: &wordcraft_doc::styles::StyleSheet) -> Vec<u32> {
     let mut bytes: Vec<usize> = p.text.char_indices().filter(|(_, c)| *c == SOFT_HYPHEN).map(|(i, c)| i + c.len_utf8()).collect();
-    // English patterns would break other languages' words in the wrong places.
-    let foreign = if auto { unproofed_ranges(styles, p) } else { Vec::new() };
+    // Each word with its language's patterns (none yet for a language whose patterns are loading).
+    let spans = if auto { lang_spans(styles, p) } else { Vec::new() };
     if auto {
         let lim = wordcraft_proof::hyphen::Limits::default();
         let mut start: Option<usize> = None;
@@ -1021,10 +1021,10 @@ fn hyphenation_points(p: &Paragraph, pl: &ParaLayout, auto: bool, styles: &wordc
                 (Some(a), false) => {
                     if let Some(w) = text.get(a..i)
                         && w.chars().count() >= lim.min_word
-                        && !foreign.iter().any(|r| r.start < i && a < r.end)
                     {
                         let offs: Vec<usize> = w.char_indices().map(|(o, _)| o).collect();
-                        for pt in wordcraft_proof::hyphen::hyphen_points(w, &lim) {
+                        let lang = lang_at(&spans, a);
+                        for pt in wordcraft_proof::hyphen_points_in(w, &lim, lang.as_deref(), false) {
                             if let Some(o) = offs.get(pt) {
                                 bytes.push(a + o);
                             }
@@ -1141,37 +1141,36 @@ impl ParaLayout {
     }
 }
 
-/// Does WordCraft have proofing tools (spelling, grammar, hyphenation) for this language? They
-/// are English; untagged text counts as English.
-pub fn proofed_language(lang: Option<&str>) -> bool {
-    lang.is_none_or(|l| l.is_empty() || l.get(..2).is_some_and(|p| p.eq_ignore_ascii_case("en")))
-}
-
-/// Byte ranges of `p` in a language without proofing tools (German text, say): spelling,
-/// grammar and automatic hyphenation leave them alone rather than judging them as English.
-pub fn unproofed_ranges(styles: &wordcraft_doc::styles::StyleSheet, p: &Paragraph) -> Vec<std::ops::Range<usize>> {
+/// The language of each run of `p` (resolved through styles; `None` is untagged text).
+pub fn lang_spans(styles: &wordcraft_doc::styles::StyleSheet, p: &Paragraph) -> Vec<(std::ops::Range<usize>, Option<String>)> {
     let para_style = p.props.style.as_deref();
-    p.run_ranges().filter(|(_, c)| !proofed_language(styles.resolve_char(para_style, c).lang.as_deref())).map(|(r, _)| r).collect()
+    p.run_ranges().map(|(r, c)| (r, styles.resolve_char(para_style, c).lang)).collect()
 }
 
-/// Spelling and grammar issues in a paragraph (skipping "do not check" and hidden runs, and
-/// languages without proofing tools).
+/// The language at byte offset `off` of the paragraph the spans came from.
+pub fn lang_at(spans: &[(std::ops::Range<usize>, Option<String>)], off: usize) -> Option<String> {
+    spans.iter().find(|(r, _)| r.contains(&off)).or_else(|| spans.last()).and_then(|(_, l)| l.clone())
+}
+
+/// Spelling and grammar issues in a paragraph, each part in its own language (skipping "do not
+/// check" and hidden runs). Dictionaries or grammar answers still on their way count as no issues
+/// yet; the layout cache key includes [`wordcraft_proof::generation`], so they appear when ready.
 fn proof_issues(p: &Paragraph, styles: &wordcraft_doc::styles::StyleSheet) -> Vec<(usize, usize, bool)> {
     if p.text.trim().is_empty() || p.text.len() > 100_000 {
         return Vec::new();
     }
-    let foreign = unproofed_ranges(styles, p);
-    if foreign.iter().map(|r| r.len()).sum::<usize>() >= p.text.len() {
-        return Vec::new();
-    }
+    let spans = lang_spans(styles, p);
+    let lang = |off: usize| lang_at(&spans, off);
     let text = proof_text(p);
     let skip = |a: usize, b: usize| {
-        foreign.iter().any(|r| r.start < b && a < r.end)
-            || p.run_ranges().any(|(r, c)| r.start < b && a < r.end && (c.no_proof == Some(true) || c.hidden == Some(true) || c.link.is_some()))
+        p.run_ranges().any(|(r, c)| r.start < b && a < r.end && (c.no_proof == Some(true) || c.hidden == Some(true) || c.link.is_some()))
     };
-    let mut v: Vec<(usize, usize, bool)> =
-        wordcraft_proof::check_spelling(&text).into_iter().filter(|i| !skip(i.start, i.end)).map(|i| (i.start, i.end, false)).collect();
-    v.extend(wordcraft_proof::check_grammar(&text).into_iter().filter(|i| !skip(i.start, i.end)).map(|i| (i.start, i.end, true)));
+    let mut v: Vec<(usize, usize, bool)> = wordcraft_proof::check_spelling_in(&text, &lang, false)
+        .into_iter()
+        .filter(|i| !skip(i.start, i.end))
+        .map(|i| (i.start, i.end, false))
+        .collect();
+    v.extend(wordcraft_proof::check_grammar_in(&text, &lang, false).into_iter().filter(|i| !skip(i.start, i.end)).map(|i| (i.start, i.end, true)));
     v
 }
 

@@ -11,6 +11,8 @@ workspace = true
 [dependencies]
 log = { workspace = true }
 miniz_oxide = "0.8"
+serde_json = { workspace = true }
+spellbook = "0.4.2"
 
 [dev-dependencies]
 proptest = { workspace = true }

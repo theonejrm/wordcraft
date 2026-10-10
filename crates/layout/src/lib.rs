@@ -160,6 +160,7 @@ struct Key {
     table_chr: u64,
     notes: u64,
     excl: u64,
+    proof: u64,
 }
 
 /// Memoised paragraph layouts.
@@ -195,7 +196,14 @@ fn hash_of<T: Hash>(t: &T) -> u64 {
 
 fn env_hash(doc: &Document, opts: &LayoutOptions) -> u64 {
     let s = serde_json::to_string(&(&doc.styles, &doc.numbering, doc.settings.default_tab, &doc.settings.footnote_format)).unwrap_or_default();
-    hash_of(&(s, opts.show_hidden, opts.proofing, wordcraft_proof::user_dictionary().len(), doc.settings.auto_hyphenation))
+    hash_of(&(
+        s,
+        opts.show_hidden,
+        opts.proofing,
+        wordcraft_proof::user_dictionary().len(),
+        wordcraft_proof::generation(),
+        doc.settings.auto_hyphenation,
+    ))
 }
 
 fn has_page_fields(p: &Paragraph) -> bool {
@@ -263,6 +271,12 @@ impl Ctx<'_> {
             table_chr: table_chr.map(|c| hash_of(&format!("{c:?}"))).unwrap_or(0),
             notes: if p.objects.iter().any(|o| matches!(o, InlineObject::NoteRef { .. })) { self.notes_hash } else { 0 },
             excl: if exclusions.is_empty() { 0 } else { hash_of(&format!("{exclusions:?}")) },
+            // Grammar answers arrive later: a paragraph whose answer came in is laid out again.
+            proof: if self.opts.proofing && wordcraft_proof::languagetool::url().is_some() {
+                wordcraft_proof::languagetool::stamp(&para::proof_text(p))
+            } else {
+                0
+            },
         };
         self.cache.used.insert(key.clone());
         if let Some(pl) = self.cache.paras.get(&key) {

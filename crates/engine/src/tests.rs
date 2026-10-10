@@ -388,11 +388,58 @@ fn german_text_is_not_judged_as_english() {
     run(&mut s, "caret.docStart", json!({}));
     let r = run(&mut s, "review.spelling", json!({}));
     assert_eq!(r["kind"], "spelling", "{r}");
-    // Without a language the command marks text in the session's language.
+    // Without a language the command marks text in the session's language: now German, so
+    // "Thsi" is a German misspelling where a German dictionary is installed, and unjudged otherwise.
     run(&mut s, "select.all", json!({}));
     run(&mut s, "review.language", json!({}));
+    run(&mut s, "caret.docStart", json!({}));
     let r = run(&mut s, "review.spelling", json!({}));
-    assert_eq!(r["done"], true, "{r}");
+    if wordcraft_proof::hunspell::locate("de-DE").is_some() {
+        assert_eq!(r["text"], "Thsi", "{r}");
+    } else {
+        assert_eq!(r["done"], true, "{r}");
+    }
+}
+
+#[test]
+fn other_languages_are_checked_with_their_dictionary() {
+    // A tiny dictionary for a made-up language keeps this independent of the machine.
+    wordcraft_proof::hunspell::register("xq-QQ", "SET UTF-8\nTRY aeiourstnlh\n", "4\nhaus\nboot\ntür\nsee\n").unwrap();
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    run(&mut s, "text.insert", json!({"text": "haus boot huas see"}));
+    run(&mut s, "select.all", json!({}));
+    run(&mut s, "review.language", json!({"lang": "xq-QQ"}));
+    run(&mut s, "caret.docStart", json!({}));
+    let r = run(&mut s, "review.spelling", json!({}));
+    assert_eq!(r["text"], "huas", "{r}");
+    assert!(r["suggestions"].as_array().is_some_and(|a| a.iter().any(|x| x == "haus")), "{r}");
+    let issues = run(&mut s, "review.issues", json!({}));
+    assert_eq!(issues.as_array().map(Vec::len), Some(1), "{issues}");
+    // The real German dictionary and patterns, where installed.
+    if wordcraft_proof::hunspell::locate("de-DE").is_some() {
+        let mut s = Session::new(wordcraft_doc::Document::new());
+        s.locale = "de-DE".into();
+        run(&mut s, "file.new", json!({}));
+        run(&mut s, "text.insert", json!({"text": "Die Donaudampfschifffahrtsgesellschaft schreibt die Nachbarschafft an."}));
+        let r = run(&mut s, "review.spelling", json!({}));
+        assert_eq!(r["text"], "Nachbarschafft", "{r}");
+        assert!(r["suggestions"].as_array().is_some_and(|a| a.iter().any(|x| x == "Nachbarschaft")), "{r}");
+    }
+}
+
+#[test]
+fn dictionaries_and_the_grammar_server_are_commands() {
+    let mut s = Session::new(wordcraft_doc::Document::new());
+    let d = run(&mut s, "review.dictionaries", json!({}));
+    assert!(d["spelling"].is_array() && d["hyphenation"].is_array() && d["searched"].is_array(), "{d}");
+    assert!(s.run("review.languageTool", &json!({"url": "https://example.com"})).is_err(), "only http:// servers");
+    // Nothing listens on the discard port: on, but unreachable; then off again.
+    let r = run(&mut s, "review.languageTool", json!({"enabled": true, "url": "http://127.0.0.1:9"}));
+    assert_eq!(r["enabled"], true);
+    assert!(r["status"].as_str().is_some_and(|st| st.starts_with("unreachable")), "{r}");
+    let r = run(&mut s, "review.languageTool", json!({"enabled": false}));
+    assert_eq!(r["enabled"], false);
+    assert_eq!(r["status"], "off");
 }
 
 #[test]

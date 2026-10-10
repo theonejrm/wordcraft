@@ -75,6 +75,10 @@ pub struct UiState {
     /// Measurement units: `auto` (the region's: centimetres in Germany, inches in the US) or
     /// `cm`, `mm`, `in`, `pt` ([`measure::UNITS`]).
     pub units: String,
+    /// Grammar and style checking by a LanguageTool server on this computer (off by default).
+    pub language_tool: bool,
+    /// The LanguageTool server's address.
+    pub language_tool_url: String,
 }
 
 impl Default for UiState {
@@ -92,6 +96,8 @@ impl Default for UiState {
             window: None,
             language: i18n::AUTO.into(),
             units: measure::AUTO.into(),
+            language_tool: false,
+            language_tool_url: "http://localhost:8081".into(),
         }
     }
 }
@@ -165,6 +171,12 @@ impl WordApp {
     pub fn prefs(&self) -> UiState {
         let mut ui = self.ui.clone();
         ui.author = self.session.author.clone();
+        if let Some(u) = wordcraft_engine::proof::languagetool::url() {
+            ui.language_tool = true;
+            ui.language_tool_url = u;
+        } else {
+            ui.language_tool = false;
+        }
         ui
     }
 
@@ -176,6 +188,9 @@ impl WordApp {
         let author = std::mem::take(&mut self.ui.author);
         if !author.trim().is_empty() {
             self.session.author = author;
+        }
+        if self.ui.language_tool {
+            let _ = self.session.run("review.languageTool", &json!({"enabled": true, "url": self.ui.language_tool_url}));
         }
     }
 
@@ -406,6 +421,10 @@ impl WordApp {
         }
         if self.autosave && self.session.dirty && self.session.path.is_some() {
             ctx.request_repaint_after(std::time::Duration::from_millis(1000));
+        }
+        // Dictionaries loading or grammar answers on their way: look again soon so they show.
+        if wordcraft_engine::proof::busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
         self.collect_screenshots(ctx);
         self.issue_screenshots(ctx);

@@ -850,3 +850,25 @@
 	Envelope #10 paper	10 號信封
 	Envelope DL paper	DL 信封
 	Document1	文件1
+
+# Proofing: dictionaries, LanguageTool, issue messages.
+	Possible spelling mistake	可能的拼字錯誤
+	Repeated word	重複的字詞
+	Extra space	多餘的空格
+	Remove the space before the punctuation	刪除標點前的空格
+	Capitalize the first word of a sentence	句首單字應大寫
+	Use "an" before a vowel sound	母音前應使用「an」
+	Use "a" before a consonant sound	子音前應使用「a」
+	none	無
+	Spelling: English (built in), {dictionaries}	拼字：英文（內建），{dictionaries}
+	Hyphenation: English (built in), {patterns}	斷字：英文（內建），{patterns}
+	There's no {language} dictionary yet: install your system's Hunspell dictionary package, or add the .aff and .dic files to the folder below.	尚無{language}字典：請安裝系統的 Hunspell 字典套件，或將 .aff 和 .dic 檔案放入下方的資料夾。
+	Your dictionaries folder: {folder}	你的字典資料夾：{folder}
+	Search again	重新搜尋
+	Check grammar and style with LanguageTool	使用 LanguageTool 檢查文法和文體
+	Server:	伺服器：
+	Connected.	已連線。
+	Not reachable: {error}	無法連線：{error}
+	LanguageTool is a separate, free program. Start its server on this computer, e.g. `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`; your text stays on this computer.	LanguageTool 是獨立的免費程式。請在本機啟動其伺服器，例如 `java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8081`；你的文字不會離開本機。
+	Dictionaries	字典
+	LanguageTool Server	LanguageTool 伺服器

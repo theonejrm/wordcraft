@@ -9,8 +9,15 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod dict;
+pub mod files;
+pub mod german;
+pub mod hunspell;
 pub mod hyphen;
+pub mod languagetool;
+pub mod libhyphen;
 pub mod patterns;
+
+pub use files::{busy, generation};
 
 use std::collections::HashSet;
 use std::sync::{OnceLock, RwLock};
@@ -185,15 +192,21 @@ fn known_core(w: &str) -> bool {
     false
 }
 
+/// Words every language accepts without a dictionary: single letters, words with digits,
+/// ALL-CAPS acronyms up to six letters, anything without letters.
+fn always_fine(w: &str) -> bool {
+    w.chars().count() <= 1
+        || w.chars().any(|c| c.is_ascii_digit())
+        || !w.chars().any(char::is_alphabetic)
+        || (w.chars().all(|c| !c.is_lowercase()) && w.chars().count() <= 6)
+}
+
 /// Is `word` spelled correctly? Numbers, single letters, ALL-CAPS acronyms, URLs and words with
 /// digits are accepted.
 pub fn is_correct(word: &str) -> bool {
     let w = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '\'');
     let w = w.trim_matches('\'');
-    if w.chars().count() <= 1 || w.chars().any(|c| c.is_ascii_digit()) || !w.chars().any(char::is_alphabetic) {
-        return true;
-    }
-    if w.chars().all(|c| !c.is_lowercase()) && w.chars().count() <= 6 {
+    if always_fine(w) {
         return true;
     }
     if !w.is_ascii() && !w.chars().any(|c| c.is_ascii_alphabetic()) {
@@ -314,6 +327,140 @@ pub fn words(text: &str) -> Vec<(usize, usize)> {
         .collect()
 }
 
+/// Is text in this language judged by the built-in English tools? Untagged text counts as
+/// English. Other languages use installed dictionaries ([`hunspell`], [`libhyphen`]).
+pub fn is_english(lang: Option<&str>) -> bool {
+    lang.is_none_or(|l| l.is_empty() || l.get(..2).is_some_and(|p| p.eq_ignore_ascii_case("en")))
+}
+
+fn is_german(lang: Option<&str>) -> bool {
+    lang.and_then(|l| l.get(..2)).is_some_and(|p| p.eq_ignore_ascii_case("de"))
+}
+
+/// The language of the text at a byte offset of a paragraph (`None`: untagged, i.e. English).
+pub type LangAt<'a> = &'a dyn Fn(usize) -> Option<String>;
+
+fn is_url_like(text: &str, a: usize, b: usize) -> bool {
+    let ts = text.get(..a).and_then(|t| t.rfind(char::is_whitespace)).map(|i| i + 1).unwrap_or(0);
+    let te = text.get(b..).and_then(|t| t.find(char::is_whitespace)).map(|i| b + i).unwrap_or(text.len());
+    let token = text.get(ts..te).unwrap_or("");
+    token.contains("://") || token.contains('@') || token.starts_with("www.")
+}
+
+/// Spelling issues with every word judged in its own language: English by the built-in list,
+/// other languages by their installed dictionary, and text in a language without one isn't
+/// judged. Without `wait`, a dictionary that is still loading means "not checked yet".
+pub fn check_spelling_in(text: &str, lang_at: LangAt, wait: bool) -> Vec<Issue> {
+    let mut v = Vec::new();
+    let mut spellers: Vec<(String, Option<std::sync::Arc<hunspell::Speller>>)> = Vec::new();
+    for (a, b) in words(text) {
+        let Some(w) = text.get(a..b) else { continue };
+        if is_url_like(text, a, b) {
+            continue;
+        }
+        let lang = lang_at(a);
+        let ok = if is_english(lang.as_deref()) {
+            is_correct(w)
+        } else {
+            let l = lang.unwrap_or_default();
+            let sp = match spellers.iter().find(|(k, _)| *k == l) {
+                Some((_, sp)) => sp.clone(),
+                None => {
+                    let sp = hunspell::speller(&l, wait);
+                    spellers.push((l, sp.clone()));
+                    sp
+                }
+            };
+            let Some(sp) = sp else { continue };
+            let core = w.trim_matches(['\'', '-']);
+            always_fine(core)
+                || sp.check(w)
+                // Abbreviations are listed with their period (bzw., ca.).
+                || (text.get(b..).is_some_and(|t| t.starts_with('.')) && sp.check(&format!("{w}.")))
+                // Hyphenated compounds the dictionary doesn't list: each part.
+                || (w.contains('-') && w.split('-').all(|p| p.is_empty() || always_fine(p) || sp.check(p)))
+        };
+        if !ok {
+            v.push(Issue { start: a, end: b, kind: IssueKind::Spelling, message: "Possible spelling mistake".into(), suggestions: Vec::new() });
+        }
+    }
+    v
+}
+
+/// Normalized language key for comparisons (`de-de`); `en-us` for untagged text.
+fn lang_key(lang: Option<&str>) -> String {
+    lang.filter(|l| !l.is_empty()).unwrap_or("en-US").replace('_', "-").to_ascii_lowercase()
+}
+
+/// Grammar issues with each part of the text checked by its language's rules: LanguageTool for
+/// the paragraph's main language when a server is configured and has answered, the built-in rules
+/// otherwise (English rules for English, German rules for German, spacing for the rest).
+pub fn check_grammar_in(text: &str, lang_at: LangAt, wait: bool) -> Vec<Issue> {
+    let ws = words(text);
+    if ws.is_empty() && !text.contains("  ") {
+        return Vec::new();
+    }
+    // The paragraph's main language, by letters.
+    let mut weights: Vec<(String, Option<String>, usize)> = Vec::new();
+    for (a, b) in &ws {
+        let l = lang_at(*a);
+        let k = lang_key(l.as_deref());
+        match weights.iter_mut().find(|(key, _, _)| *key == k) {
+            Some(w) => w.2 += b - a,
+            None => weights.push((k, l, b - a)),
+        }
+    }
+    let main = weights.iter().max_by_key(|w| w.2).map(|w| (w.0.clone(), w.1.clone().unwrap_or_else(|| "en-US".into())));
+    let server = match &main {
+        Some((_, tag)) if languagetool::url().is_some() => languagetool::grammar(text, tag, wait),
+        _ => None,
+    };
+    let covered = |k: &str| server.is_some() && main.as_ref().is_some_and(|(mk, _)| mk == k);
+    let mut out: Vec<Issue> = Vec::new();
+    if let Some(issues) = &server {
+        out.extend(issues.iter().filter(|i| covered(&lang_key(lang_at(i.start).as_deref()))).cloned());
+    }
+    let english = check_grammar(text);
+    let german = german::check(text);
+    for i in english {
+        let l = lang_at(i.start);
+        if is_english(l.as_deref()) && !covered(&lang_key(l.as_deref())) {
+            out.push(i);
+        }
+    }
+    for i in german {
+        let l = lang_at(i.start);
+        let k = lang_key(l.as_deref());
+        if covered(&k) || is_english(l.as_deref()) {
+            continue;
+        }
+        if is_german(l.as_deref()) || i.message == "Extra space" {
+            out.push(i);
+        }
+    }
+    out.sort_by_key(|i| i.start);
+    out
+}
+
+/// Spelling suggestions in a language (English: the built-in list; others: their dictionary).
+pub fn suggest_in(word: &str, lang: Option<&str>, max: usize) -> Vec<String> {
+    if is_english(lang) {
+        return suggest(word, max);
+    }
+    lang.and_then(|l| hunspell::speller(l, true)).map(|sp| sp.suggest(word, max)).unwrap_or_default()
+}
+
+/// Hyphenation points of `word` in a language (char indices, limits applied); empty for a
+/// language without patterns, or (without `wait`) while they load.
+pub fn hyphen_points_in(word: &str, lim: &hyphen::Limits, lang: Option<&str>, wait: bool) -> Vec<usize> {
+    if is_english(lang) {
+        return hyphen::hyphen_points(word, lim);
+    }
+    let Some(h) = lang.and_then(|l| libhyphen::hyphenator(l, wait)) else { return Vec::new() };
+    let (pts, _) = hyphen::word_breaks_with(word, &|core: &[char]| (h.points(core), hyphen::Source::Patterns));
+    hyphen::limit_points(word, pts, lim)
+}
+
 /// Spelling issues in a paragraph of text (no suggestions; ask [`suggest`] on demand).
 pub fn check_spelling(text: &str) -> Vec<Issue> {
     let mut v = Vec::new();
@@ -345,13 +492,7 @@ pub fn check_grammar(text: &str) -> Vec<Issue> {
             && w0.chars().all(char::is_alphabetic)
             && !matches!(w0.to_lowercase().as_str(), "had" | "that" | "bye" | "so")
         {
-            v.push(Issue {
-                start: *a0,
-                end: *b1,
-                kind: IssueKind::Grammar,
-                message: format!("Repeated word: \"{w1}\""),
-                suggestions: vec![w0.to_string()],
-            });
+            v.push(Issue { start: *a0, end: *b1, kind: IssueKind::Grammar, message: "Repeated word".into(), suggestions: vec![w0.to_string()] });
         }
         if gap == " " && (w0 == "a" || w0 == "A") && w1.chars().next().is_some_and(|c| "aeiouAEIOU".contains(c)) && !starts_consonant_sound(w1) {
             v.push(Issue {
@@ -495,6 +636,66 @@ mod tests {
         assert!(hyphen::hyphenate_word("hyphenation", &l).matches('-').count() >= 2);
     }
 
+    /// English and another language in one paragraph: each part by its own rules.
+    #[test]
+    fn mixed_languages() {
+        hunspell::register("xr-RR", hunspell::tests::AFF, hunspell::tests::DIC).unwrap();
+        let text = "This sentense is fine. haus hasu ist ist gut";
+        let split = text.find("haus").unwrap_or(0);
+        let lang = |o: usize| if o >= split { Some("xr-RR".to_string()) } else { None };
+        let bad: Vec<&str> = check_spelling_in(text, &lang, true).iter().map(|i| &text[i.start..i.end]).collect();
+        // "ist" and "gut" aren't in the tiny dictionary either.
+        assert_eq!(bad.first().copied(), Some("sentense"));
+        assert!(bad.contains(&"hasu") && !bad.contains(&"haus"), "{bad:?}");
+        // German rules don't run on xr text, but the spacing rule does; English rules only on English.
+        let g = check_grammar_in("Das ist ist gut.  Fine", &|_| Some("de-DE".into()), true);
+        assert!(g.iter().any(|i| i.message == "Repeated word") && g.iter().any(|i| i.message == "Extra space"), "{g:?}");
+        let g = check_grammar_in("a apple", &|_| Some("fr-FR".into()), true);
+        assert!(g.is_empty(), "{g:?}");
+        assert_eq!(suggest_in("hasu", Some("xr-RR"), 3).first().map(String::as_str), Some("haus"));
+        assert!(suggest_in("hasu", Some("zz-ZZ"), 3).is_empty());
+    }
+
+    #[test]
+    fn hyphenation_by_language() {
+        libhyphen::register("xh-HH", "UTF-8\ns1b\nNEXTLEVEL\no1t\n");
+        let lim = hyphen::Limits::default();
+        let pts = hyphen_points_in("Hausboote", &lim, Some("xh-HH"), true);
+        assert_eq!(pts, vec![4, 7]);
+        assert!(hyphen_points_in("Hausboote", &lim, Some("zz-ZZ"), true).is_empty());
+        assert!(!hyphen_points_in("hyphenation", &lim, None, true).is_empty());
+    }
+
+    /// LanguageTool answers replace the built-in rules for the paragraph's language.
+    #[test]
+    fn grammar_from_a_languagetool_server() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for stream in listener.incoming().take(4) {
+                let Ok(mut s) = stream else { continue };
+                let mut buf = vec![0u8; 65536];
+                let n = s.read(&mut buf).unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                let body = if req.contains("language=xl-LL") {
+                    r#"{"matches":[{"message":"Komma fehlt","offset":3,"length":4,"replacements":[{"value":"eins,"}],"rule":{"issueType":"grammar","category":{"id":"PUNCTUATION"}}}]}"#
+                } else {
+                    r#"{"matches":[]}"#
+                };
+                let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}", body.len()).as_bytes());
+            }
+        });
+        languagetool::configure(Some(&format!("http://127.0.0.1:{port}"))).unwrap();
+        let text = "Es eins  zwei";
+        let g = check_grammar_in(text, &|_| Some("xl-LL".into()), true);
+        languagetool::configure(None).unwrap();
+        // The server's comma issue; its answer covers the paragraph, so the spacing rule is skipped.
+        assert_eq!(g.len(), 1, "{g:?}");
+        assert_eq!(&text[g[0].start..g[0].end], "eins");
+        assert_eq!(g[0].message, "Komma fehlt");
+    }
+
     proptest::proptest! {
         #[test]
         fn never_panics(s in "\\PC{0,80}") {
@@ -502,6 +703,11 @@ mod tests {
             let _ = check_grammar(&s);
             let _ = suggest(&s, 3);
             let _ = hyphen::hyphen_points(&s, &hyphen::Limits::default());
+            let de = |_: usize| Some("de-DE".to_string());
+            let _ = check_spelling_in(&s, &de, false);
+            let _ = check_grammar_in(&s, &de, false);
+            let _ = german::check(&s);
+            let _ = hyphen_points_in(&s, &hyphen::Limits::default(), Some("de-DE"), false);
         }
     }
 }
